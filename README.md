@@ -9,6 +9,21 @@
 
 ---
 
+## 📸 Скриншоты
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/02-create.png" alt="Создание изображений"><br><sub><b>Создать</b>: генерация по тексту, результаты в галерее</sub></td>
+    <td width="50%"><img src="docs/screenshots/04-edit.png" alt="Редактирование фото"><br><sub><b>Редактировать фото</b>: правка по инструкции, два фото для совмещения</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/03-upscale.png" alt="Апскейл x2"><br><sub><b>Апскейл ×2</b>: фото, люди, предметы и аниме</sub></td>
+    <td width="50%"><img src="docs/screenshots/01-empty.png" alt="Главный экран"><br><sub>Главный экран: всё помещается на одном экране</sub></td>
+  </tr>
+</table>
+
+---
+
 ## ✨ Возможности
 
 ### 1. 🎨 Создание изображений («Создать»)
