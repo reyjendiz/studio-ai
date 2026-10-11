@@ -1,0 +1,9 @@
+{
+  "calibrated": true,
+  "safe": 253,
+  "max": 400,
+  "max_seconds": 10,
+  "sec_base": 125,
+  "sec_per_mpxf": 0.6,
+  "note": "RTX 4080 SUPER 16 GB, Q4_K_M + int8 encoder. Mpxf = width*height*frames/1e6. Largest tested without OOM: 1920x1088x121 (253), 1280x704x241 (217). 'max' is an untested guess; time = base + slope*Mpxf with models already loaded."
+}

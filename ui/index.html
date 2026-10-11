@@ -18,6 +18,7 @@
     --spring:cubic-bezier(.32,.72,0,1);
   }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  [hidden] { display:none !important; }
   html { scroll-behavior:smooth; }
   body {
     margin:0; height:100vh; overflow:hidden; background:var(--bg); color:var(--text);
@@ -32,7 +33,7 @@
   header { padding:16px 22px 14px; display:flex; align-items:center; gap:18px; }
   header h1 { margin:0; font-size:22px; font-weight:600; letter-spacing:-.02em; display:flex; align-items:center; gap:11px; }
   header h1 i { width:32px; height:32px; border-radius:11px; display:grid; place-items:center; color:var(--accent-text); background:linear-gradient(135deg, var(--accent-2), var(--accent)); box-shadow:0 4px 18px rgba(143,168,60,.3); }
-  header #modeSeg { width:min(480px, 52vw); }
+  header #modeSeg { width:min(640px, 60vw); }
   .chip { display:inline-flex; align-items:center; gap:8px; padding:6px 14px; border-radius:999px; font-size:12.5px; font-weight:600; color:var(--mute); background:var(--glass); border:1px solid var(--line); backdrop-filter:blur(20px); }
   .chip::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--accent); box-shadow:0 0 8px var(--accent); }
   header .chip { margin-left:auto; }
@@ -280,12 +281,13 @@
     <button type="button" data-value="gen">Создать</button>
     <button type="button" data-value="edit">Редактировать фото</button>
     <button type="button" data-value="up">Апскейл ×2</button>
+    <button type="button" data-value="video">Видео (LTX-2.5)</button>
   </div>
   <input type="hidden" id="mode" value="gen">
   <span class="chip">локально · без лимитов</span>
 </header>
 
-<main>
+<main id="mainView">
   <form class="card composer" id="form" autocomplete="off">
     <div class="up-only">
       <div class="seg" id="upSeg"><span class="thumb"></span>
@@ -380,6 +382,7 @@
     </section>
   </div>
 </main>
+<div id="videoView" hidden></div>
 </div>
 
 <div id="sheetBg"><div class="card" id="sheet" role="dialog" aria-label="Модели">
@@ -686,7 +689,21 @@ const PLACEHOLDER = {
   gen:'Опиши картинку по-английски: Photo of a … soft window light, 35mm, natural skin texture',
   edit:'Что изменить, по-английски: Change the jacket to red. Keep the face and background unchanged.'
 };
+/* the video tab is built on first open, so it costs nothing at startup */
+let videoLoading;
+function loadVideoTab() {
+  if (videoLoading) return;
+  videoLoading = new Promise((ok, fail) => {
+    const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = '/ltx/video.css'; document.head.appendChild(css);
+    const js = document.createElement('script'); js.src = '/ltx/video.js';
+    js.onload = () => ok(window.initVideoTab($('videoView'))); js.onerror = () => { videoLoading = null; fail(); };
+    document.head.appendChild(js);
+  });
+}
 function syncMode() {
+  const video = $('mode').value === 'video';
+  $('mainView').hidden = video; $('videoView').hidden = !video;
+  if (video) { loadVideoTab(); return; }
   const edit = isEdit(), up = isUp();
   $('form').classList.toggle('up', up);
   $('goText').textContent = up ? 'Увеличить ×2' : 'Сгенерировать';

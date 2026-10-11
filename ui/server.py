@@ -4,6 +4,7 @@ import http.server, urllib.request, urllib.error, urllib.parse, pathlib, json, r
 
 COMFY = "http://127.0.0.1:8188"
 HERE = pathlib.Path(__file__).parent
+IDLE_VIDEO = 300     # a video run leaves ~30 GB of weights loaded; reloading them takes 5-10 min, so keep ComfyUI a bit longer after one
 IDLE = 60            # seconds without generation before ComfyUI (and the translation model) are released
 START_TIMEOUT = 240  # how long a request may wait for ComfyUI to finish loading
 ON_DEMAND = ("/prompt", "/upload/image")   # the only calls that start ComfyUI; everything else works (or fails quietly) without it
@@ -96,7 +97,7 @@ def idle_watch():
         if p is not None and p.poll() is None and not comfy_lock.locked():
             if busy():
                 comfy["last"] = now
-            elif now - comfy["last"] > IDLE:
+            elif now - comfy["last"] > (IDLE_VIDEO if LTX["pid"] else IDLE):
                 subprocess.run(["taskkill", "/T", "/F", "/PID", str(p.pid)], capture_output=True, creationflags=0x08000000)
                 comfy["proc"] = None
         with tr_lock:
@@ -277,6 +278,114 @@ def delete_image_file(filename, subfolder="", folder_type="output"):
     return True
 
 
+# --- LTX-2.5 video: file discovery, ComfyUI websocket progress, history next to the files ---
+LTX_DIR = HERE / "ltx"
+VIDEO_DIR = OUTPUT_DIR / "video"
+LTX = {"cid": uuid.uuid4().hex, "pid": None, "node": None, "nodes": {}, "state": "idle", "error": None}   # progress of the last job, filled by the websocket thread
+STATIC_EXT = {".js": "text/javascript", ".css": "text/css", ".json": "application/json"}
+
+
+def ltx_event(m):
+    t, d = m.get("type"), m.get("data") or {}
+    if t == "execution_start":
+        LTX.update(pid=d.get("prompt_id"), state="running", error=None, node=None, nodes={})
+    elif t == "progress_state":   # ComfyUI >= 0.3x reports sampler steps this way
+        if d.get("prompt_id") and d["prompt_id"] != LTX["pid"]:
+            LTX.update(pid=d["prompt_id"], state="running", error=None, nodes={})
+        for nid, n in (d.get("nodes") or {}).items():
+            LTX["nodes"][str(nid)] = [n.get("value", 0), n.get("max", 0)]
+            if n.get("state") == "running":
+                LTX["node"] = str(nid)
+    elif t in ("executing", "progress"):
+        if d.get("prompt_id") and d["prompt_id"] != LTX["pid"]:   # the socket may connect after execution_start (ComfyUI was just started)
+            LTX.update(pid=d["prompt_id"], state="running", error=None, nodes={})
+        if t == "executing":
+            LTX["node"] = d.get("node")
+        else:
+            LTX["nodes"][str(d.get("node"))] = [d.get("value", 0), d.get("max", 0)]
+    elif t == "execution_success":
+        LTX["state"] = "done"
+    elif t == "execution_error":
+        LTX.update(state="error", error={"type": d.get("exception_type", ""), "message": d.get("exception_message", ""), "node": d.get("node_type", "")})
+    elif t == "execution_interrupted":
+        LTX["state"] = "interrupted"
+
+
+def ltx_ws():
+    """Listens to ComfyUI's websocket (reconnects whenever ComfyUI is started or stopped); the page polls /api/ltx/progress."""
+    import asyncio, aiohttp
+
+    async def run():
+        while True:
+            if comfy_up():
+                try:
+                    async with aiohttp.ClientSession() as s, s.ws_connect(COMFY.replace("http", "ws") + "/ws?clientId=" + LTX["cid"], heartbeat=30) as ws:
+                        async for m in ws:
+                            if m.type == aiohttp.WSMsgType.TEXT:
+                                ltx_event(json.loads(m.data))
+                except Exception:
+                    pass
+            await asyncio.sleep(0.5)
+    asyncio.run(run())
+
+
+def ltx_files():
+    def names(folder, *parts):
+        d = MODELS / folder
+        return sorted(p.name for p in d.glob("*") if p.is_file() and all(x in p.name.lower() for x in parts) and p.suffix in (".gguf", ".safetensors")) if d.is_dir() else []
+    return {
+        "unet": sorted(set(names("unet", "ltx") + names("diffusion_models", "ltx")), key=str.lower),
+        "clip": names("text_encoders", "gemma4"),
+        "vae": names("vae", "ltx", "video"),
+        "audio_vae": names("vae", "ltx", "audio"),
+        "upscaler": names("latent_upscale_models", "ltx", "spatial"),
+    }
+
+
+def ltx_history(limit=200):
+    out = []
+    for p in VIDEO_DIR.glob("ltx*.mp4") if VIDEO_DIR.is_dir() else []:
+        meta = {}
+        try:
+            meta = json.loads(p.with_suffix(".json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            pass
+        out.append({"filename": p.name, "subfolder": "video", "type": "output", "mtime": p.stat().st_mtime, "size": p.stat().st_size, "meta": meta})
+    out.sort(key=lambda x: -x["mtime"])
+    return out[:limit]
+
+
+def ltx_file(name):
+    if not re.fullmatch(r"ltx[\w\-. ]{1,100}\.mp4", name or ""):
+        raise ValueError("недопустимое имя файла")
+    f = (VIDEO_DIR / name).resolve()
+    if f.parent != VIDEO_DIR.resolve() or not f.is_file():
+        raise ValueError("файл не найден")
+    return f
+
+
+def serve_file(h, f, ctype):
+    """Whole file or one Range slice: <video> needs ranges to seek."""
+    size, start, end = f.stat().st_size, 0, f.stat().st_size - 1
+    m = re.fullmatch(r"bytes=(\d*)-(\d*)", h.headers.get("Range", ""))
+    if m and (m[1] or m[2]):
+        start = int(m[1]) if m[1] else max(0, size - int(m[2]))
+        end = min(int(m[2]), size - 1) if m[1] and m[2] else end
+    h.send_response(206 if m else 200)
+    h.send_header("Content-Type", ctype)
+    h.send_header("Accept-Ranges", "bytes")
+    h.send_header("Content-Length", str(end - start + 1))
+    if m:
+        h.send_header("Content-Range", "bytes %d-%d/%d" % (start, end, size))
+    h.end_headers()
+    with open(f, "rb") as fh:
+        fh.seek(start)
+        left = end - start + 1
+        while left > 0 and (chunk := fh.read(min(1 << 20, left))):
+            h.wfile.write(chunk)
+            left -= len(chunk)
+
+
 class H(http.server.BaseHTTPRequestHandler):
     def _send(self, code, body, ctype="application/json"):
         if isinstance(body, (dict, list)):
@@ -335,12 +444,25 @@ class H(http.server.BaseHTTPRequestHandler):
             return self._send(200, jobs)
         if u.path == "/api/images":
             return self._send(200, list_images())
+        if u.path == "/api/ltx/models":
+            return self._send(200, {"files": ltx_files(), "comfy": comfy_up()})
+        if u.path == "/api/ltx/progress":
+            return self._send(200, {k: v for k, v in LTX.items()} | {"comfy": comfy_up()})
+        if u.path == "/api/ltx/history":
+            return self._send(200, ltx_history())
+        if u.path.startswith("/ltx/"):   # the lazily loaded video tab: scripts, styles and workflow templates
+            f = (LTX_DIR / urllib.parse.unquote(u.path[5:])).resolve()
+            if f.parent == LTX_DIR.resolve() and f.suffix in STATIC_EXT and f.is_file():
+                return self._send(200, f.read_bytes(), STATIC_EXT[f.suffix] + "; charset=utf-8")
+            return self._send(404, {"error": "not found"})
         if u.path == "/view":   # straight from disk, so browsing the gallery never wakes ComfyUI
             q = urllib.parse.parse_qs(u.query)
             name, sub, kind = (q.get(k, [""])[0] for k in ("filename", "subfolder", "type"))
             base = {"temp": TEMP_DIR, "input": INPUT_DIR}.get(kind, OUTPUT_DIR).resolve()
             f = (base / sub / name).resolve()
             if name and "/" not in name and "\\" not in name and f.is_relative_to(base) and f.is_file():
+                if f.suffix.lower() == ".mp4":
+                    return serve_file(self, f, "video/mp4")
                 return self._send(200, f.read_bytes(), mimetypes.guess_type(name)[0] or "application/octet-stream")
             return self._send(404, {"error": "not found"})
         if u.path.startswith("/art/"):   # design illustrations; resolve() blocks ../ escapes
@@ -380,6 +502,19 @@ class H(http.server.BaseHTTPRequestHandler):
                 matches[0].unlink()
                 set_registry(name, None)
                 return self._send(200, {"ok": True})
+            if u.path == "/api/ltx/meta":   # settings of a finished video, stored next to it
+                d = self._json()
+                ltx_file(d.get("filename")).with_suffix(".json").write_text(json.dumps(d.get("meta") or {}, ensure_ascii=False, indent=1), encoding="utf-8")
+                return self._send(200, {"ok": True})
+            if u.path == "/api/ltx/open-folder":
+                f = ltx_file(self._json().get("filename"))
+                subprocess.Popen(["explorer", "/select,", str(f)], creationflags=0x08000000)
+                return self._send(200, {"ok": True})
+            if u.path == "/api/ltx/delete":
+                f = ltx_file(self._json().get("filename"))
+                f.unlink()
+                f.with_suffix(".json").unlink(missing_ok=True)
+                return self._send(200, {"ok": True})
             if u.path == "/api/image/delete":
                 d = self._json()
                 filename = str(d.get("filename", "")).strip()
@@ -402,4 +537,5 @@ class H(http.server.BaseHTTPRequestHandler):
 if __name__ == "__main__":
     print("UI: http://127.0.0.1:8189")
     threading.Thread(target=idle_watch, daemon=True).start()
+    threading.Thread(target=ltx_ws, daemon=True).start()
     http.server.ThreadingHTTPServer(("127.0.0.1", 8189), H).serve_forever()

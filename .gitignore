@@ -67,3 +67,7 @@ desktop.ini
 ComfyUI/
 *.old.*
 ui/index.backup-*.html
+
+# --- LTX video: local test backups and GGUF weights ---
+_backup_before_ltx/
+*.gguf
