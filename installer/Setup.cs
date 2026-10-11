@@ -114,17 +114,17 @@ namespace StudioSetup
             tr.Files.Add(new FileSpec { RelativePath = @"translate\opus-mt-ru-en\vocab.json", Url = "https://huggingface.co/Helsinki-NLP/opus-mt-ru-en/resolve/main/vocab.json", ExpectedSize = 2601758L, Description = "Словарь" });
             catalog.Add(tr);
 
-            // 2. Upscaler Models (RealESRGAN)
+            // 2. Upscaler Models (Phips: Nomos2 hq dat2 for photos, HFA2k for anime)
             var up = new ModelItem
             {
-                Title = "Модели Апскейлера 2×/4× (RealESRGAN x4plus + Anime 6B)",
+                Title = "Модели Апскейлера ×2 (Nomos2 hq dat2 + HFA2k)",
                 Category = "Апскейлер",
-                Description = "Нейросети сверхчеткого увеличения изображений в 2-4 раза: фото и аниме/арт (~85 МБ).",
-                SizeBytes = 84796635L,
+                Description = "Нейросети сверхчеткого увеличения изображений в 2-4 раза: фото, люди, предметы и аниме/арт (~173 МБ).",
+                SizeBytes = 173260410L,
                 IsSelected = true
             };
-            up.Files.Add(new FileSpec { RelativePath = @"ComfyUI\models\upscale_models\RealESRGAN_x4plus.safetensors", Url = "https://huggingface.co/Comfy-Org/Real-ESRGAN_repackaged/resolve/main/RealESRGAN_x4plus.safetensors", ExpectedSize = 66857836L, Description = "RealESRGAN x4plus (Фото)" });
-            up.Files.Add(new FileSpec { RelativePath = @"ComfyUI\models\upscale_models\RealESRGAN_x4plus_anime_6B.pth", Url = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth", ExpectedSize = 17938799L, Description = "RealESRGAN x4plus Anime 6B (Аниме)" });
+            up.Files.Add(new FileSpec { RelativePath = @"ComfyUI\models\upscale_models\4xNomos2_hq_dat2.safetensors", Url = "https://huggingface.co/Phips/4xNomos2_hq_dat2/resolve/main/4xNomos2_hq_dat2.safetensors", ExpectedSize = 139792588L, Description = "4xNomos2 hq dat2 (Фото)" });
+            up.Files.Add(new FileSpec { RelativePath = @"ComfyUI\models\upscale_models\4xHFA2k.safetensors", Url = "https://huggingface.co/Phips/4xHFA2k/resolve/main/4xHFA2k.safetensors", ExpectedSize = 33467822L, Description = "4xHFA2k (Аниме)" });
             catalog.Add(up);
 
             // 3. Z-Image Ultimate NSFW v2.0

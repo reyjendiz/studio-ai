@@ -76,11 +76,11 @@ if (-not $SkipTranslator) {
     Download-ModelFile "$trBase/vocab.json" "translate\opus-mt-ru-en\vocab.json" 2601758 "Словарь"
 }
 
-# 2. Upscalers (RealESRGAN)
+# 2. Upscalers (Phips: Nomos2 hq dat2 for photos, HFA2k for anime)
 if (-not $SkipUpscalers) {
-    Write-Host "`n>>> [2/4] Установка моделей Апскейлера 2x/4x (RealESRGAN)..." -ForegroundColor Cyan
-    Download-ModelFile "https://huggingface.co/Comfy-Org/Real-ESRGAN_repackaged/resolve/main/RealESRGAN_x4plus.safetensors" "ComfyUI\models\upscale_models\RealESRGAN_x4plus.safetensors" 66857836 "RealESRGAN x4plus (Фото, 66.8 МБ)"
-    Download-ModelFile "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth" "ComfyUI\models\upscale_models\RealESRGAN_x4plus_anime_6B.pth" 17938799 "RealESRGAN x4plus Anime 6B (Аниме, 17.9 МБ)"
+    Write-Host "`n>>> [2/4] Установка моделей Апскейлера 2x (Nomos2 hq dat2 + HFA2k)..." -ForegroundColor Cyan
+    Download-ModelFile "https://huggingface.co/Phips/4xNomos2_hq_dat2/resolve/main/4xNomos2_hq_dat2.safetensors" "ComfyUI\models\upscale_models\4xNomos2_hq_dat2.safetensors" 139792588 "4xNomos2 hq dat2 (Фото, люди, предметы, 139.8 МБ)"
+    Download-ModelFile "https://huggingface.co/Phips/4xHFA2k/resolve/main/4xHFA2k.safetensors" "ComfyUI\models\upscale_models\4xHFA2k.safetensors" 33467822 "4xHFA2k (Аниме и арт, 33.5 МБ)"
 }
 
 # 3. Z-Image Ultimate NSFW v2.0

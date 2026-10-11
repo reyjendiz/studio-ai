@@ -617,7 +617,7 @@ const kleinGenWorkflow = (p, w, h, n, seed, model) => ({
 });
 
 // 2x upscale: ESRGAN makes 4x, lanczos halves it back, which keeps the detail and removes noise ("supersampling")
-const UP_MODEL = {photo:'RealESRGAN_x4plus.safetensors', anime:'RealESRGAN_x4plus_anime_6B.pth'};
+const UP_MODEL = {photo:'4xNomos2_hq_dat2.safetensors', anime:'4xHFA2k.safetensors'};
 const upscaleWorkflow = (photo, kind) => ({
   1: {class_type:'LoadImage', inputs:{image:photo}},
   2: {class_type:'UpscaleModelLoader', inputs:{model_name:UP_MODEL[kind]}},

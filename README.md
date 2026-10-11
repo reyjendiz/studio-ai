@@ -4,7 +4,7 @@
 
 [![Platform](https://img.shields.io/badge/Platform-Windows_10_%2F_11-blue.svg)](https://microsoft.com/windows)
 [![Backend](https://img.shields.io/badge/Backend-ComfyUI-orange.svg)](https://github.com/comfyanonymous/ComfyUI)
-[![Models](https://img.shields.io/badge/Models-Z--Image_%7C_NoctQ_%7C_RealESRGAN-green.svg)](https://civitai.com)
+[![Models](https://img.shields.io/badge/Models-Z--Image_%7C_NoctQ_%7C_Nomos2_%7C_HFA2k-green.svg)](https://civitai.com)
 [![Translation](https://img.shields.io/badge/Translator-Helsinki--NLP_Offline-purple.svg)](https://huggingface.co/Helsinki-NLP/opus-mt-ru-en)
 
 ---
@@ -39,8 +39,8 @@
 * Поддержка Z-Image (img2img с ползунком силы изменений 0.6–1.0) и NoctQ (нейросетевой эдитор Qwen-Image 2.1).
 
 ### 3. 🔍 Сверхчеткий апскейл («Апскейл ×2»)
-* **RealESRGAN x4plus** — для реалистичных фото, портретов и людей с восстановлением мелких деталей кожи и ткани.
-* **RealESRGAN x4plus Anime 6B** — для артов, рисунков, аниме и векторной графики.
+* **4xNomos2 hq dat2** — для фото, людей и предметов: чёткий результат без «мыла» на коже и ткани.
+* **4xHFA2k** — для артов, рисунков и аниме.
 * Увеличение разрешения с удалением артефактов и шумоподавлением.
 
 ### 4. 🌐 Встроенный офлайн-переводчик RU → EN
@@ -61,7 +61,7 @@
 2. Откроется графический мастер установки.
 3. Отметьте нужные модели и компоненты галочками:
    - [x] **Офлайн-переводчик RU → EN** (~311 МБ)
-   - [x] **Модели Апскейлера 2×/4×** (~85 МБ)
+   - [x] **Модели Апскейлера ×2** (~173 МБ)
    - [x] **Z-Image Ultimate NSFW v2.0** (~17.0 ГБ)
    - [x] **NoctQ V4 int8 Qwen-Image 2.1** (~16.1 ГБ)
    - [x] **Создать ярлык «Студия» на Рабочем столе**
@@ -101,8 +101,8 @@
 | `NoctQ_V4_int8_convrot.safetensors` | Основная модель NoctQ 2.1 | `ComfyUI\models\diffusion_models\` |
 | `qwen3vl_8b_int8_convrot.safetensors` | Текстовый энкодер NoctQ | `ComfyUI\models\text_encoders\` |
 | `qwen_image_2.1_vae_bf16.safetensors`| VAE автоэнкодер NoctQ | `ComfyUI\models\vae\` |
-| `RealESRGAN_x4plus.safetensors` | Апскейлер для фото | `ComfyUI\models\upscale_models\` |
-| `RealESRGAN_x4plus_anime_6B.pth` | Апскейлер для аниме/арта | `ComfyUI\models\upscale_models\` |
+| `4xNomos2_hq_dat2.safetensors` | Апскейлер для фото, людей и предметов | `ComfyUI\models\upscale_models\` |
+| `4xHFA2k.safetensors` | Апскейлер для аниме/арта | `ComfyUI\models\upscale_models\` |
 | `opus-mt-ru-en` (веса и токенизатор)| Локальный переводчик | `translate\opus-mt-ru-en\` |
 
 Файл регистрации семейств моделей: [`ui/models.json`](ui/models.json).
