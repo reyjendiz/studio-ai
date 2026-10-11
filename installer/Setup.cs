@@ -37,6 +37,8 @@ namespace StudioSetup
         public bool IsSelected { get; set; }
         public string RegistryKey { get; set; }
         public string RegistryFamily { get; set; }
+        public bool NeedsToken { get; set; }
+        public bool InstallGgufNode { get; set; }
 
         public ModelItem()
         {
@@ -61,6 +63,7 @@ namespace StudioSetup
         public string Url { get; set; }
         public long ExpectedSize { get; set; }
         public string Description { get; set; }
+        public bool Gated { get; set; }
     }
 
     public class MainForm : Form
@@ -70,6 +73,7 @@ namespace StudioSetup
         private Label lblDetect;
         private CheckedListBox clbModels;
         private CheckBox chkShortcut;
+        private TextBox txtToken;
         private ProgressBar pbTotal;
         private ProgressBar pbFile;
         private Label lblStatus;
@@ -158,13 +162,32 @@ namespace StudioSetup
             noct.Files.Add(new FileSpec { RelativePath = @"ComfyUI\models\text_encoders\qwen3vl_8b_int8_convrot.safetensors", Url = "https://huggingface.co/Noctaluna/Noct-Q-Uncensored-Qwen-Image-2.1/resolve/main/qwen3vl_8b_int8_convrot.safetensors", ExpectedSize = 9350798360L, Description = "Qwen 3VL 8B Text Encoder (8.71 ГБ)" });
             noct.Files.Add(new FileSpec { RelativePath = @"ComfyUI\models\vae\qwen_image_2.1_vae_bf16.safetensors", Url = "https://huggingface.co/Noctaluna/Noct-Q-Uncensored-Qwen-Image-2.1/resolve/main/qwen_image_2.1_vae_bf16.safetensors", ExpectedSize = 675509688L, Description = "Qwen-Image 2.1 VAE BF16 (644 МБ)" });
             catalog.Add(noct);
+
+            // 5. LTX-2.5 video (GGUF). Only the transformer is open; everything else needs a Hugging Face account that accepted the LTX license.
+            const string lt = "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/";
+            var ltx = new ModelItem
+            {
+                Title = "Видео: LTX-2.5 (GGUF, влезает в 16 ГБ) + ComfyUI-GGUF",
+                Category = "Видео",
+                Description = "Текст → видео и фото → видео со звуком (~34 ГБ). Нужен токен Hugging Face и принятая лицензия Lightricks/LTX-2.5.",
+                SizeBytes = 15687639488L + 15372969374L + 1472223346L + 364866540L + 995778752L,
+                IsSelected = false,
+                NeedsToken = true,
+                InstallGgufNode = true
+            };
+            ltx.Files.Add(new FileSpec { RelativePath = @"ComfyUI\models\unet\LTX-2.5-Distilled-Q4_K_M.gguf", Url = "https://huggingface.co/Abiray/LTX-2.5-Distilled-GGUF/resolve/main/LTX-2.5-Distilled-Q4_K_M.gguf", ExpectedSize = 15687639488L, Description = "LTX-2.5 Distilled Q4_K_M (14.6 ГБ)" });
+            ltx.Files.Add(new FileSpec { RelativePath = @"ComfyUI\models\text_encoders\gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors", Url = lt + "text_encoders/gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors", ExpectedSize = 15372969374L, Description = "Gemma 4 12B энкодер int8 (14.3 ГБ)", Gated = true });
+            ltx.Files.Add(new FileSpec { RelativePath = @"ComfyUI\models\vae\ltx-2.5-video-vae-bf16.safetensors", Url = lt + "vae/ltx-2.5-video-vae-bf16.safetensors", ExpectedSize = 1472223346L, Description = "LTX-2.5 видео VAE (1.4 ГБ)", Gated = true });
+            ltx.Files.Add(new FileSpec { RelativePath = @"ComfyUI\models\vae\ltx-2.5-audio-vae-bf16.safetensors", Url = lt + "vae/ltx-2.5-audio-vae-bf16.safetensors", ExpectedSize = 364866540L, Description = "LTX-2.5 аудио VAE (348 МБ)", Gated = true });
+            ltx.Files.Add(new FileSpec { RelativePath = @"ComfyUI\models\latent_upscale_models\ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors", Url = lt + "latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors", ExpectedSize = 995778752L, Description = "Апскейлер латентов ×2 (950 МБ)", Gated = true });
+            catalog.Add(ltx);
         }
 
         private void InitUI()
         {
             Text = "Студия — Мастер установки моделей и компонентов";
-            Size = new Size(820, 720);
-            MinimumSize = new Size(740, 620);
+            Size = new Size(820, 770);
+            MinimumSize = new Size(740, 670);
             StartPosition = FormStartPosition.CenterScreen;
             BackColor = Color.FromArgb(20, 21, 25);
             ForeColor = Color.FromArgb(240, 240, 245);
@@ -214,15 +237,18 @@ namespace StudioSetup
 
             chkShortcut = new CheckBox { Text = "Создать удобный ярлык «Студия» на Рабочем столе с иконкой", Location = new Point(20, 270), AutoSize = true, Checked = true, ForeColor = Color.FromArgb(220, 222, 230) };
 
-            // Progress section
-            lblStatus = new Label { Text = "Готов к установке. Выберите компоненты и нажмите «Начать установку».", Location = new Point(20, 305), AutoSize = true, ForeColor = Color.FromArgb(190, 195, 205) };
-            lblSpeed = new Label { Text = "", Location = new Point(600, 305), Width = 170, TextAlign = ContentAlignment.TopRight, Anchor = AnchorStyles.Top | AnchorStyles.Right, ForeColor = Color.FromArgb(100, 180, 255) };
+            var lblToken = new Label { Text = "Токен Hugging Face (только для видео LTX-2.5, нигде не сохраняется):", Location = new Point(20, 298), AutoSize = true, ForeColor = Color.FromArgb(190, 195, 205) };
+            txtToken = new TextBox { Location = new Point(20, 320), Width = 750, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right, BackColor = Color.FromArgb(32, 34, 42), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle, UseSystemPasswordChar = true };
 
-            pbFile = new ProgressBar { Location = new Point(20, 330), Width = 750, Height = 12, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
-            pbTotal = new ProgressBar { Location = new Point(20, 348), Width = 750, Height = 18, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
+            // Progress section
+            lblStatus = new Label { Text = "Готов к установке. Выберите компоненты и нажмите «Начать установку».", Location = new Point(20, 355), AutoSize = true, ForeColor = Color.FromArgb(190, 195, 205) };
+            lblSpeed = new Label { Text = "", Location = new Point(600, 355), Width = 170, TextAlign = ContentAlignment.TopRight, Anchor = AnchorStyles.Top | AnchorStyles.Right, ForeColor = Color.FromArgb(100, 180, 255) };
+
+            pbFile = new ProgressBar { Location = new Point(20, 380), Width = 750, Height = 12, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
+            pbTotal = new ProgressBar { Location = new Point(20, 398), Width = 750, Height = 18, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
 
             // Log output
-            rtbLog = new RichTextBox { Location = new Point(20, 375), Width = 750, Height = 180, Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right, BackColor = Color.FromArgb(14, 15, 18), ForeColor = Color.FromArgb(190, 200, 210), BorderStyle = BorderStyle.None, ReadOnly = true, Font = new Font("Consolas", 9f) };
+            rtbLog = new RichTextBox { Location = new Point(20, 425), Width = 750, Height = 180, Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right, BackColor = Color.FromArgb(14, 15, 18), ForeColor = Color.FromArgb(190, 200, 210), BorderStyle = BorderStyle.None, ReadOnly = true, Font = new Font("Consolas", 9f) };
 
             pnlBody.Controls.Add(lblPath);
             pnlBody.Controls.Add(txtTarget);
@@ -231,6 +257,8 @@ namespace StudioSetup
             pnlBody.Controls.Add(lblSelect);
             pnlBody.Controls.Add(clbModels);
             pnlBody.Controls.Add(chkShortcut);
+            pnlBody.Controls.Add(lblToken);
+            pnlBody.Controls.Add(txtToken);
             pnlBody.Controls.Add(lblStatus);
             pnlBody.Controls.Add(lblSpeed);
             pnlBody.Controls.Add(pbFile);
@@ -374,6 +402,7 @@ namespace StudioSetup
             txtTarget.Enabled = false;
             clbModels.Enabled = false;
             chkShortcut.Enabled = false;
+            txtToken.Enabled = false;
             btnCancel.Text = "Прервать";
 
             cancelRequested = false;
@@ -404,17 +433,34 @@ namespace StudioSetup
             // Collect all files to download
             var files = new List<FileSpec>();
             var regUpdates = new Dictionary<string, string>();
+            bool installGguf = false;
 
             foreach (var item in catalog)
             {
                 if (item.IsSelected)
                 {
                     files.AddRange(item.Files);
+                    if (item.InstallGgufNode) installGguf = true;
                     if (!string.IsNullOrEmpty(item.RegistryKey) && !string.IsNullOrEmpty(item.RegistryFamily))
                     {
                         regUpdates[item.RegistryKey] = item.RegistryFamily;
                     }
                 }
+            }
+
+            string hfToken = null;
+            FileSpec firstGated = null;
+            foreach (var f in files)
+            {
+                if (f.Gated && !File.Exists(Path.Combine(root, f.RelativePath))) { firstGated = f; break; }
+            }
+            if (firstGated != null)
+            {
+                hfToken = ResolveToken();
+                if (string.IsNullOrEmpty(hfToken))
+                    throw new Exception("Для видео LTX-2.5 нужен токен Hugging Face (права Read). Примите лицензию на https://huggingface.co/Lightricks/LTX-2.5 и вставьте токен в поле установщика.");
+                CheckGatedAccess(firstGated.Url, hfToken);
+                Log("✓ Доступ к Lightricks/LTX-2.5 подтверждён.");
             }
 
             long totalBytesAll = 0;
@@ -465,19 +511,10 @@ namespace StudioSetup
                     if (cancelRequested) { e.Cancel = true; return; }
                     try
                     {
-                        var req = (HttpWebRequest)WebRequest.Create(f.Url);
-                        req.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
-                        req.Timeout = 60000;
-                        req.ReadWriteTimeout = 60000;
-                        req.AllowAutoRedirect = true;
-
                         if (existingPart > 0)
-                        {
-                            req.AddRange(existingPart);
                             Log(string.Format("  Возобновление скачивания с позиции {0:0.1} МБ", (double)existingPart / (1024.0 * 1024)));
-                        }
 
-                        using (var resp = (HttpWebResponse)req.GetResponse())
+                        using (var resp = OpenResponse(f.Url, existingPart, f.Gated ? hfToken : null))
                         using (var stream = resp.GetResponseStream())
                         using (var fs = new FileStream(partPath, existingPart > 0 ? FileMode.Append : FileMode.Create, FileAccess.Write, FileShare.None))
                         {
@@ -540,10 +577,148 @@ namespace StudioSetup
                 UpdateModelsRegistry(root, regUpdates);
             }
 
+            if (installGguf)
+            {
+                InstallGgufNode(root);
+            }
+
             // Desktop shortcut
             if (chkShortcut.Checked)
             {
                 CreateDesktopShortcut(root);
+            }
+        }
+
+        // The token goes only to huggingface.co: redirects are followed by hand so it is never sent on to a CDN host.
+        private HttpWebResponse OpenResponse(string url, long from, string token)
+        {
+            for (int hop = 0; hop < 6; hop++)
+            {
+                var req = (HttpWebRequest)WebRequest.Create(url);
+                req.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
+                req.Timeout = 60000;
+                req.ReadWriteTimeout = 60000;
+                req.AllowAutoRedirect = false;
+                if (from > 0) req.AddRange(from);
+                if (!string.IsNullOrEmpty(token) && req.RequestUri.Host.EndsWith("huggingface.co", StringComparison.OrdinalIgnoreCase))
+                    req.Headers["Authorization"] = "Bearer " + token;
+
+                HttpWebResponse resp;
+                try { resp = (HttpWebResponse)req.GetResponse(); }
+                catch (WebException ex)
+                {
+                    var er = ex.Response as HttpWebResponse;
+                    if (er != null && !string.IsNullOrEmpty(token) && (er.StatusCode == HttpStatusCode.Unauthorized || er.StatusCode == HttpStatusCode.Forbidden))
+                        throw new Exception("Hugging Face отказал в доступе (" + (int)er.StatusCode + "). Проверьте токен и примите лицензию на странице модели.");
+                    throw;
+                }
+                int code = (int)resp.StatusCode;
+                if (code >= 300 && code < 400)
+                {
+                    string loc = resp.Headers["Location"];
+                    resp.Close();
+                    if (string.IsNullOrEmpty(loc)) throw new Exception("Сервер вернул перенаправление без адреса.");
+                    url = new Uri(req.RequestUri, loc).ToString();
+                    continue;
+                }
+                return resp;
+            }
+            throw new Exception("Слишком много перенаправлений при загрузке.");
+        }
+
+        private string ResolveToken()
+        {
+            string t = null;
+            Invoke(new Action(() => { t = txtToken.Text.Trim(); }));
+            if (string.IsNullOrEmpty(t)) t = Environment.GetEnvironmentVariable("HF_TOKEN");
+            if (string.IsNullOrEmpty(t))
+            {
+                // the file huggingface_hub.login() writes
+                string f = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), @".cache\huggingface\token");
+                if (File.Exists(f)) t = File.ReadAllText(f).Trim();
+            }
+            return t;
+        }
+
+        private void CheckGatedAccess(string url, string token)
+        {
+            using (var r = OpenResponse(url, 0, token)) { }   // throws a readable message on 401/403
+        }
+
+        private const string GgufNodeCommit = "6ea2651e7df66d7585f6ffee804b20e92fb38b8a";
+
+        // ComfyUI-GGUF (pinned commit) into custom_nodes, loader.py patched for Gemma 4 / LTX (same change as patches\ComfyUI-GGUF-ltx25-gemma4.patch), then its Python deps.
+        private void InstallGgufNode(string root)
+        {
+            try
+            {
+                string comfy = Path.Combine(root, "ComfyUI");
+                string ver = Path.Combine(comfy, "comfyui_version.py");
+                if (File.Exists(ver))
+                {
+                    var m = System.Text.RegularExpressions.Regex.Match(File.ReadAllText(ver), "\"0\\.(\\d+)\\.\\d+\"");
+                    if (m.Success && int.Parse(m.Groups[1].Value) < 39)
+                        Log("! ComfyUI старее 0.39: для LTX-2.5 обновите его (update\\update_comfyui.bat).");
+                }
+
+                string nodeDir = Path.Combine(comfy, @"custom_nodes\ComfyUI-GGUF");
+                if (!File.Exists(Path.Combine(nodeDir, "loader.py")))
+                {
+                    Log("↓ ComfyUI-GGUF (GitHub, зафиксированная версия)...");
+                    string tmp = Path.Combine(Path.GetTempPath(), "studio_gguf_" + Guid.NewGuid().ToString("N"));
+                    string zip = tmp + ".zip";
+                    using (var wc = new WebClient())
+                    {
+                        wc.Headers["User-Agent"] = "Mozilla/5.0";
+                        wc.DownloadFile("https://github.com/city96/ComfyUI-GGUF/archive/" + GgufNodeCommit + ".zip", zip);
+                    }
+                    System.IO.Compression.ZipFile.ExtractToDirectory(zip, tmp);
+                    Directory.CreateDirectory(Path.GetDirectoryName(nodeDir));
+                    Directory.Move(Path.Combine(tmp, "ComfyUI-GGUF-" + GgufNodeCommit), nodeDir);
+                    File.Delete(zip);
+                    Directory.Delete(tmp, true);
+                }
+
+                string loader = Path.Combine(nodeDir, "loader.py");
+                string src = File.ReadAllText(loader).Replace("\r\n", "\n");
+                if (src.Contains("\"gemma4\""))
+                {
+                    Log("✓ ComfyUI-GGUF уже пропатчен.");
+                }
+                else
+                {
+                    string a1 = "TXT_ARCH_LIST = {\"t5\", \"t5encoder\", \"llama\", \"qwen2vl\", \"qwen3\", \"qwen3vl\", \"gemma3\"}";
+                    string a2 = "VIS_TYPE_LIST = {\"clip-vision\", \"mmproj\"}\n";
+                    string a3 = "        # 1D tensors shouldn't be quantized, this is a fix for BF16\n        if len(shape) <= 1 and tensor.tensor_type == gguf.GGMLQuantizationType.BF16:";
+                    if (!src.Contains(a1) || !src.Contains(a2) || !src.Contains(a3))
+                        throw new Exception("loader.py имеет неожиданный вид, патч не применён.");
+                    src = src.Replace(a1, "TXT_ARCH_LIST = {\"t5\", \"t5encoder\", \"llama\", \"qwen2vl\", \"qwen3\", \"qwen3vl\", \"gemma3\", \"gemma4\"}");
+                    src = src.Replace(a2, a2 + "LTXV_BF16_PARAMETERS = {\n    \"audio_embeddings_connector.learnable_registers\",\n    \"keyframes_abs_pos_embedding\",\n    \"video_embeddings_connector.learnable_registers\",\n}\n");
+                    src = src.Replace(a3, "        # Raw LTXAV parameters are not loaded through GGMLOps, so their BF16 byte storage must be decoded here.\n        if tensor.tensor_type == gguf.GGMLQuantizationType.BF16 and (len(shape) <= 1 or (arch_str == \"ltxv\" and tensor_name in LTXV_BF16_PARAMETERS)):");
+                    File.WriteAllText(loader, src);
+                    Log("✓ ComfyUI-GGUF: применён патч для Gemma 4 / LTX.");
+                }
+
+                string py = Path.Combine(root, @"python_embeded\python.exe");
+                if (File.Exists(py))
+                {
+                    Log("Установка Python-зависимостей ComfyUI-GGUF (gguf, sentencepiece, protobuf)...");
+                    var psi = new ProcessStartInfo(py, "-s -m pip install \"gguf>=0.13.0\" sentencepiece protobuf")
+                    {
+                        WorkingDirectory = root, UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true
+                    };
+                    using (var pr = Process.Start(psi))
+                    {
+                        string o = pr.StandardOutput.ReadToEnd() + pr.StandardError.ReadToEnd();
+                        pr.WaitForExit();
+                        Log(pr.ExitCode == 0 ? "✓ Зависимости установлены." : "! pip завершился с ошибкой: " + o.Trim());
+                    }
+                }
+                else Log("! python_embeded не найден: установите вручную gguf, sentencepiece, protobuf.");
+            }
+            catch (Exception ex)
+            {
+                Log("! Не удалось установить ComfyUI-GGUF: " + ex.Message);
             }
         }
 
@@ -651,6 +826,7 @@ namespace StudioSetup
             txtTarget.Enabled = true;
             clbModels.Enabled = true;
             chkShortcut.Enabled = true;
+            txtToken.Enabled = true;
             btnCancel.Text = "Закрыть";
 
             if (e.Cancelled)

@@ -1,4 +1,4 @@
-# ==============================================================================
+﻿# ==============================================================================
 # Студия AI — Скрипт автоматической установки моделей и компонентов
 # ==============================================================================
 param(
@@ -7,7 +7,9 @@ param(
     [switch]$SkipNoctQ,
     [switch]$SkipUpscalers,
     [switch]$SkipTranslator,
-    [switch]$NoShortcut
+    [switch]$NoShortcut,
+    [switch]$LTX,            # video LTX-2.5 (~34 GB); needs a Hugging Face token and the accepted Lightricks/LTX-2.5 license
+    [string]$HfToken = $env:HF_TOKEN
 )
 
 $Host.UI.RawUI.WindowTitle = "Студия — Установка моделей"
@@ -23,7 +25,8 @@ function Download-ModelFile {
         [string]$Url,
         [string]$RelativePath,
         [long]$ExpectedSize,
-        [string]$Description
+        [string]$Description,
+        [string]$Token = ""      # sent to the first host only: curl drops custom Authorization headers on cross-host redirects
     )
 
     $dest = Join-Path $TargetDir $RelativePath
@@ -45,7 +48,9 @@ function Download-ModelFile {
     $curl = Get-Command "curl.exe" -ErrorAction SilentlyContinue
 
     if ($curl) {
-        & curl.exe -L --retry 3 --retry-delay 3 -C - -o $part -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" $Url
+        $auth = @()
+        if ($Token) { $auth = @("-H", "Authorization: Bearer $Token") }
+        & curl.exe -L -f --retry 3 --retry-delay 3 -C - -o $part -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" @auth $Url
         if ($LASTEXITCODE -eq 0 -and (Test-Path $part)) {
             if (Test-Path $dest) { Remove-Item $dest -Force }
             Move-Item $part $dest -Force
@@ -53,6 +58,8 @@ function Download-ModelFile {
             return
         }
     }
+
+    if ($Token) { throw "Для загрузки с токеном нужен curl.exe (есть в Windows 10/11)." }
 
     # Fallback to BITS / WebClient if curl is not present
     $wc = New-Object System.Net.WebClient
@@ -98,6 +105,47 @@ if (-not $SkipNoctQ) {
     Download-ModelFile "$noctBase/NoctQ_V4_int8_convrot.safetensors" "ComfyUI\models\diffusion_models\NoctQ_V4_int8_convrot.safetensors" 7256784368 "NoctQ V4 INT8 Diffusion Model (6.76 ГБ)"
     Download-ModelFile "$noctBase/qwen3vl_8b_int8_convrot.safetensors" "ComfyUI\models\text_encoders\qwen3vl_8b_int8_convrot.safetensors" 9350798360 "Qwen 3VL 8B Text Encoder (8.71 ГБ)"
     Download-ModelFile "$noctBase/qwen_image_2.1_vae_bf16.safetensors" "ComfyUI\models\vae\qwen_image_2.1_vae_bf16.safetensors" 675509688 "Qwen-Image 2.1 VAE BF16 (644 МБ)"
+}
+
+# 5. Video LTX-2.5 (GGUF): transformer is open, the rest is gated on Hugging Face
+if ($LTX) {
+    Write-Host "`n>>> [5/5] Установка видео LTX-2.5 (~34 ГБ)..." -ForegroundColor Cyan
+    if (-not $HfToken) {
+        $tokFile = Join-Path $env:USERPROFILE ".cache\huggingface\token"
+        if (Test-Path $tokFile) { $HfToken = (Get-Content $tokFile -Raw).Trim() }
+    }
+    if (-not $HfToken) { throw "Нужен токен Hugging Face: -HfToken <токен> (права Read). Сначала примите лицензию на https://huggingface.co/Lightricks/LTX-2.5" }
+    $lt = "https://huggingface.co/Lightricks/LTX-2.5/resolve/main"
+    Download-ModelFile "https://huggingface.co/Abiray/LTX-2.5-Distilled-GGUF/resolve/main/LTX-2.5-Distilled-Q4_K_M.gguf" "ComfyUI\models\unet\LTX-2.5-Distilled-Q4_K_M.gguf" 15687639488 "LTX-2.5 Distilled Q4_K_M (14.6 ГБ)"
+    Download-ModelFile "$lt/text_encoders/gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors" "ComfyUI\models\text_encoders\gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors" 15372969374 "Gemma 4 12B энкодер int8 (14.3 ГБ)" $HfToken
+    Download-ModelFile "$lt/vae/ltx-2.5-video-vae-bf16.safetensors" "ComfyUI\models\vae\ltx-2.5-video-vae-bf16.safetensors" 1472223346 "LTX-2.5 видео VAE (1.4 ГБ)" $HfToken
+    Download-ModelFile "$lt/vae/ltx-2.5-audio-vae-bf16.safetensors" "ComfyUI\models\vae\ltx-2.5-audio-vae-bf16.safetensors" 364866540 "LTX-2.5 аудио VAE (348 МБ)" $HfToken
+    Download-ModelFile "$lt/latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors" "ComfyUI\models\latent_upscale_models\ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors" 995778752 "Апскейлер латентов x2 (950 МБ)" $HfToken
+
+    # ComfyUI-GGUF at the tested commit + loader.py patch (same change as patches\ComfyUI-GGUF-ltx25-gemma4.patch) + its Python deps
+    $node = Join-Path $TargetDir "ComfyUI\custom_nodes\ComfyUI-GGUF"
+    if (-not (Test-Path "$node\loader.py")) {
+        $commit = "6ea2651e7df66d7585f6ffee804b20e92fb38b8a"
+        $tmp = Join-Path $env:TEMP "studio_gguf_$commit"
+        Invoke-WebRequest "https://github.com/city96/ComfyUI-GGUF/archive/$commit.zip" -OutFile "$tmp.zip" -UseBasicParsing
+        Expand-Archive "$tmp.zip" -DestinationPath $tmp -Force
+        New-Item -ItemType Directory -Force (Split-Path $node) | Out-Null
+        Move-Item "$tmp\ComfyUI-GGUF-$commit" $node
+        Remove-Item "$tmp.zip", $tmp -Recurse -Force
+    }
+    $loader = Get-Content "$node\loader.py" -Raw
+    if ($loader -notmatch '"gemma4"') {
+        $loader = $loader.Replace("`r`n", "`n")
+        $loader = $loader.Replace('TXT_ARCH_LIST = {"t5", "t5encoder", "llama", "qwen2vl", "qwen3", "qwen3vl", "gemma3"}', 'TXT_ARCH_LIST = {"t5", "t5encoder", "llama", "qwen2vl", "qwen3", "qwen3vl", "gemma3", "gemma4"}')
+        $loader = $loader.Replace("VIS_TYPE_LIST = {`"clip-vision`", `"mmproj`"}`n", "VIS_TYPE_LIST = {`"clip-vision`", `"mmproj`"}`nLTXV_BF16_PARAMETERS = {`n    `"audio_embeddings_connector.learnable_registers`",`n    `"keyframes_abs_pos_embedding`",`n    `"video_embeddings_connector.learnable_registers`",`n}`n")
+        $loader = $loader.Replace("        # 1D tensors shouldn't be quantized, this is a fix for BF16`n        if len(shape) <= 1 and tensor.tensor_type == gguf.GGMLQuantizationType.BF16:", "        # Raw LTXAV parameters are not loaded through GGMLOps, so their BF16 byte storage must be decoded here.`n        if tensor.tensor_type == gguf.GGMLQuantizationType.BF16 and (len(shape) <= 1 or (arch_str == `"ltxv`" and tensor_name in LTXV_BF16_PARAMETERS)):")
+        if ($loader -notmatch 'LTXV_BF16_PARAMETERS in|tensor_name in LTXV_BF16_PARAMETERS') { throw "loader.py имеет неожиданный вид, патч не применён." }
+        [IO.File]::WriteAllText("$node\loader.py", $loader, (New-Object Text.UTF8Encoding $false))
+        Write-Host " [✓ ГОТОВО] ComfyUI-GGUF пропатчен для Gemma 4 / LTX" -ForegroundColor Green
+    }
+    $py = Join-Path $TargetDir "python_embeded\python.exe"
+    if (Test-Path $py) { & $py -s -m pip install "gguf>=0.13.0" sentencepiece protobuf }
+    else { Write-Host " [!] python_embeded не найден: установите gguf, sentencepiece, protobuf вручную" -ForegroundColor Yellow }
 }
 
 # Sync models.json
