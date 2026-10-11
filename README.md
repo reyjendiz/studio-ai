@@ -129,6 +129,28 @@
 
 ---
 
+## 🧩 Разработка: как доработать проект
+
+Проект лежит поверх сборки **ComfyUI Portable**: рядом с файлами репозитория должны быть папки `ComfyUI\` и `python_embeded\` (в репозиторий они не входят).
+
+1. Клонируйте репозиторий: `git clone https://github.com/reyjendiz/studio-ai.git`
+2. Положите в папку проекта `ComfyUI\` и `python_embeded\` из [ComfyUI Portable](https://github.com/comfyanonymous/ComfyUI/releases).
+3. Примените правку ComfyUI (обход проблемы cuDNN conv3d): `git -C ComfyUI apply ..\patches\comfyui-cudnn-conv3d.patch`
+4. Поставьте модели через `Setup.exe` или `install.ps1`.
+5. Запуск из исходников: `python_embeded\python.exe ui\server.py`, затем откройте <http://127.0.0.1:8189>.
+
+| Что менять | Где |
+|---|---|
+| Интерфейс (вёрстка, стили, режимы, графы ComfyUI) | [`ui/index.html`](ui/index.html), один файл; после правки достаточно обновить страницу |
+| Сервер интерфейса (прокси ComfyUI, модели, перевод, запуск и остановка ComfyUI) | [`ui/server.py`](ui/server.py), нужен перезапуск сервера |
+| Иллюстрации и иконка | `ui/art\`, `ui/studio.ico`, `ui/studio.png` |
+| Окно приложения (C#, WebView2) | [`app/Studio.cs`](app/Studio.cs), сборка: `app\build.bat` |
+| Установщик | [`installer/Setup.cs`](installer/Setup.cs), сборка: `installer\build.bat` (создаёт `Setup.exe` в корне) |
+
+Новая версия выпускается так: соберите `Setup.exe`, закоммитьте изменения и создайте релиз командой `gh release create vX.Y.Z .\Setup.exe`.
+
+---
+
 ## 📄 Лицензия
 
 Распространяется свободно для личного использования. Веса моделей подпадают под лицензии соответствующих авторов на Civitai и Hugging Face.
