@@ -9,6 +9,7 @@ param(
     [switch]$SkipTranslator,
     [switch]$NoShortcut,
     [switch]$LTX,            # video LTX-2.5 (~34 GB); needs a Hugging Face token and the accepted Lightricks/LTX-2.5 license
+    [switch]$Lipsync,        # lip sync LatentSync 1.6 (~5.5 GB); open models, no token; needs ffmpeg on PATH
     [string]$HfToken = $env:HF_TOKEN
 )
 
@@ -148,6 +149,44 @@ if ($LTX) {
     else { Write-Host " [!] python_embeded не найден: установите gguf, sentencepiece, protobuf вручную" -ForegroundColor Yellow }
 }
 
+# 6. Lip sync LatentSync 1.6: UNet + Whisper tiny + Stable Diffusion VAE, the wrapper node at the tested commit, two patched files, Python packages
+if ($Lipsync) {
+    Write-Host "`n>>> [6/6] Установка липсинка LatentSync 1.6 (~5.5 ГБ)..." -ForegroundColor Cyan
+    $ckpt = "ComfyUI\custom_nodes\ComfyUI-LatentSyncWrapper\checkpoints"
+    $ls = "https://huggingface.co/ByteDance/LatentSync-1.6/resolve/main"
+    $vae = "https://huggingface.co/stabilityai/sd-vae-ft-mse/resolve/main"
+    Download-ModelFile "$ls/latentsync_unet.pt" "$ckpt\latentsync_unet.pt" 5072222488 "LatentSync 1.6 UNet (4.7 ГБ)"
+    Download-ModelFile "$ls/whisper/tiny.pt" "$ckpt\whisper\tiny.pt" 75572083 "Whisper tiny, аудио-энкодер (72 МБ)"
+    Download-ModelFile "$vae/diffusion_pytorch_model.safetensors" "$ckpt\vae\diffusion_pytorch_model.safetensors" 334643276 "Stable Diffusion VAE (319 МБ)"
+    Download-ModelFile "$vae/config.json" "$ckpt\vae\config.json" 547 "Конфиг VAE"
+
+    $node = Join-Path $TargetDir "ComfyUI\custom_nodes\ComfyUI-LatentSyncWrapper"
+    if (-not (Test-Path "$node\nodes.py")) {
+        $commit = "360d5283d7276aee68b4237b1387e594e4ce640e"
+        $tmp = Join-Path $env:TEMP "studio_lipsync_$commit"
+        Invoke-WebRequest "https://github.com/ShmuelRonen/ComfyUI-LatentSyncWrapper/archive/$commit.zip" -OutFile "$tmp.zip" -UseBasicParsing
+        Expand-Archive "$tmp.zip" -DestinationPath $tmp -Force
+        New-Item -ItemType Directory -Force $node | Out-Null
+        Copy-Item "$tmp\ComfyUI-LatentSyncWrapper-$commit\*" $node -Recurse -Force   # next to the checkpoints just downloaded
+        Remove-Item "$tmp.zip", $tmp -Recurse -Force
+    }
+    # the tested wrapper needs two small fixes for current PyTorch/PyAV (patches\ComfyUI-LatentSyncWrapper-local.patch); the patched files are in this repository
+    foreach ($rel in @("nodes.py", "latentsync/utils/util.py")) {
+        $path = Join-Path $node ($rel -replace '/', '\')
+        if ((Test-Path $path) -and ((Get-Content $path -Raw) -match "local patch")) { continue }
+        $text = (Invoke-WebRequest "https://raw.githubusercontent.com/reyjendiz/studio-ai/main/patches/LatentSyncWrapper/$rel" -UseBasicParsing).Content
+        if ($text -is [byte[]]) { $text = [Text.Encoding]::UTF8.GetString($text) }
+        if ($text -notmatch "local patch") { throw "Получен неожиданный файл вместо патча: $rel" }
+        [IO.File]::WriteAllText($path, $text, (New-Object Text.UTF8Encoding $false))
+        Write-Host " [✓ ГОТОВО] LatentSync пропатчен: $rel" -ForegroundColor Green
+    }
+    $py = Join-Path $TargetDir "python_embeded\python.exe"
+    $pkgs = "diffusers==0.41.0 omegaconf==2.4.0 einops==0.8.2 mediapipe==1.1.1 face-alignment==1.5.0 decord==0.6.0 ffmpeg-python==0.2.0 soundfile==0.14.0 DeepCache==0.1.1 python_speech_features==0.6 scenedetect==0.5.6.1 kornia==0.8.3 opencv-python==5.0.0.93" -split " "
+    if (Test-Path $py) { & $py -s -m pip install @pkgs }
+    else { Write-Host " [!] python_embeded не найден: установите вручную pip install $($pkgs -join ' ')" -ForegroundColor Yellow }
+    if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) { Write-Host " [!] ffmpeg не найден в PATH: он нужен для липсинка (winget install Gyan.FFmpeg)" -ForegroundColor Yellow }
+}
+
 # Sync models.json
 $regPath = Join-Path $TargetDir "ui\models.json"
 $reg = @{
@@ -179,8 +218,8 @@ if (-not $NoShortcut) {
     }
     $sc.WorkingDirectory = $TargetDir
     $ico = Join-Path $TargetDir "ui\studio.ico"
-    if (Test-Path $ico) { $sc.IconLocation = "$ico,0" }
-    $sc.Description = "Студия AI: Генерация, правка фото и апскейл"
+    if (Test-Path $exeApp) { $sc.IconLocation = "$exeApp,0" } elseif (Test-Path $ico) { $sc.IconLocation = "$ico,0" }   # the exe carries the icon
+    $sc.Description = "Студия AI: фото, видео и липсинк"
     $sc.Save()
     Write-Host "✓ Ярлык создан на Рабочем столе: Студия.lnk" -ForegroundColor Green
 }

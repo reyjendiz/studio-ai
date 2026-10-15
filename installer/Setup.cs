@@ -39,6 +39,7 @@ namespace StudioSetup
         public string RegistryFamily { get; set; }
         public bool NeedsToken { get; set; }
         public bool InstallGgufNode { get; set; }
+        public bool InstallLipsyncNode { get; set; }
 
         public ModelItem()
         {
@@ -181,6 +182,24 @@ namespace StudioSetup
             ltx.Files.Add(new FileSpec { RelativePath = @"ComfyUI\models\vae\ltx-2.5-audio-vae-bf16.safetensors", Url = lt + "vae/ltx-2.5-audio-vae-bf16.safetensors", ExpectedSize = 364866540L, Description = "LTX-2.5 аудио VAE (348 МБ)", Gated = true });
             ltx.Files.Add(new FileSpec { RelativePath = @"ComfyUI\models\latent_upscale_models\ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors", Url = lt + "latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors", ExpectedSize = 995778752L, Description = "Апскейлер латентов ×2 (950 МБ)", Gated = true });
             catalog.Add(ltx);
+
+            // 6. Lip sync: LatentSync 1.6 (ByteDance) with its Stable Diffusion VAE and Whisper-tiny audio encoder; all open, no token needed.
+            const string ls = "https://huggingface.co/ByteDance/LatentSync-1.6/resolve/main/";
+            const string lsDir = @"ComfyUI\custom_nodes\ComfyUI-LatentSyncWrapper\checkpoints\";
+            var lip = new ModelItem
+            {
+                Title = "Липсинк: LatentSync 1.6 (фото или видео + аудио → видео с говорящим лицом) + нода",
+                Category = "Липсинк",
+                Description = "Синхронизация губ по аудио, полностью локально (~5.5 ГБ). Нужны видеокарта от 16 ГБ и ffmpeg в PATH.",
+                SizeBytes = 5072222488L + 75572083L + 334643276L + 547L,
+                IsSelected = false,
+                InstallLipsyncNode = true
+            };
+            lip.Files.Add(new FileSpec { RelativePath = lsDir + "latentsync_unet.pt", Url = ls + "latentsync_unet.pt", ExpectedSize = 5072222488L, Description = "LatentSync 1.6 UNet (4.7 ГБ)" });
+            lip.Files.Add(new FileSpec { RelativePath = lsDir + @"whisper\tiny.pt", Url = ls + "whisper/tiny.pt", ExpectedSize = 75572083L, Description = "Whisper tiny, аудио-энкодер (72 МБ)" });
+            lip.Files.Add(new FileSpec { RelativePath = lsDir + @"vae\diffusion_pytorch_model.safetensors", Url = "https://huggingface.co/stabilityai/sd-vae-ft-mse/resolve/main/diffusion_pytorch_model.safetensors", ExpectedSize = 334643276L, Description = "Stable Diffusion VAE (319 МБ)" });
+            lip.Files.Add(new FileSpec { RelativePath = lsDir + @"vae\config.json", Url = "https://huggingface.co/stabilityai/sd-vae-ft-mse/resolve/main/config.json", ExpectedSize = 547L, Description = "Конфиг VAE" });
+            catalog.Add(lip);
         }
 
         private void InitUI()
@@ -202,7 +221,7 @@ namespace StudioSetup
 
             var pnlTop = new Panel { Dock = DockStyle.Top, Height = 75, BackColor = Color.FromArgb(26, 28, 34), Padding = new Padding(22, 12, 22, 10) };
             var lblTitle = new Label { Text = "✦ Установщик Студии (ComfyUI AI Studio)", Font = new Font("Segoe UI", 14f, FontStyle.Bold), ForeColor = Color.White, AutoSize = true, Location = new Point(20, 12) };
-            var lblSub = new Label { Text = "Автоматическая загрузка AI моделей генерации, апскейлеров и офлайн-переводчика", ForeColor = Color.FromArgb(160, 163, 175), AutoSize = true, Location = new Point(22, 42) };
+            var lblSub = new Label { Text = "Автоматическая загрузка AI моделей: фото, видео, липсинк, апскейлеры и офлайн-переводчик", ForeColor = Color.FromArgb(160, 163, 175), AutoSize = true, Location = new Point(22, 42) };
             pnlTop.Controls.Add(lblTitle);
             pnlTop.Controls.Add(lblSub);
             Controls.Add(pnlTop);
@@ -434,6 +453,7 @@ namespace StudioSetup
             var files = new List<FileSpec>();
             var regUpdates = new Dictionary<string, string>();
             bool installGguf = false;
+            bool installLipsync = false;
 
             foreach (var item in catalog)
             {
@@ -441,6 +461,7 @@ namespace StudioSetup
                 {
                     files.AddRange(item.Files);
                     if (item.InstallGgufNode) installGguf = true;
+                    if (item.InstallLipsyncNode) installLipsync = true;
                     if (!string.IsNullOrEmpty(item.RegistryKey) && !string.IsNullOrEmpty(item.RegistryFamily))
                     {
                         regUpdates[item.RegistryKey] = item.RegistryFamily;
@@ -580,6 +601,11 @@ namespace StudioSetup
             if (installGguf)
             {
                 InstallGgufNode(root);
+            }
+
+            if (installLipsync)
+            {
+                InstallLipsyncNode(root);
             }
 
             // Desktop shortcut
@@ -722,6 +748,93 @@ namespace StudioSetup
             }
         }
 
+        private const string LipsyncNodeCommit = "360d5283d7276aee68b4237b1387e594e4ce640e";
+        // The tested wrapper needs two small fixes for current PyTorch/PyAV (see patches\ComfyUI-LatentSyncWrapper-local.patch);
+        // the patched files live in this repository and replace the originals.
+        private const string LipsyncPatchBase = "https://raw.githubusercontent.com/reyjendiz/studio-ai/main/patches/LatentSyncWrapper/";
+        private const string LipsyncPackages = "diffusers==0.41.0 omegaconf==2.4.0 einops==0.8.2 mediapipe==1.1.1 face-alignment==1.5.0 decord==0.6.0 ffmpeg-python==0.2.0 soundfile==0.14.0 DeepCache==0.1.1 python_speech_features==0.6 scenedetect==0.5.6.1 kornia==0.8.3 opencv-python==5.0.0.93";
+
+        private static void CopyTree(string from, string to)
+        {
+            Directory.CreateDirectory(to);
+            foreach (string f in Directory.GetFiles(from)) File.Copy(f, Path.Combine(to, Path.GetFileName(f)), true);
+            foreach (string d in Directory.GetDirectories(from)) CopyTree(d, Path.Combine(to, Path.GetFileName(d)));
+        }
+
+        // ComfyUI-LatentSyncWrapper (pinned commit) into custom_nodes next to the checkpoints that were just downloaded, the two patched
+        // files over it, then its Python packages.
+        private void InstallLipsyncNode(string root)
+        {
+            try
+            {
+                string nodeDir = Path.Combine(root, @"ComfyUI\custom_nodes\ComfyUI-LatentSyncWrapper");
+                if (!File.Exists(Path.Combine(nodeDir, "nodes.py")))
+                {
+                    Log("↓ ComfyUI-LatentSyncWrapper (GitHub, зафиксированная версия)...");
+                    string tmp = Path.Combine(Path.GetTempPath(), "studio_lipsync_" + Guid.NewGuid().ToString("N"));
+                    string zip = tmp + ".zip";
+                    using (var wc = new WebClient())
+                    {
+                        wc.Headers["User-Agent"] = "Mozilla/5.0";
+                        wc.DownloadFile("https://github.com/ShmuelRonen/ComfyUI-LatentSyncWrapper/archive/" + LipsyncNodeCommit + ".zip", zip);
+                    }
+                    System.IO.Compression.ZipFile.ExtractToDirectory(zip, tmp);
+                    CopyTree(Path.Combine(tmp, "ComfyUI-LatentSyncWrapper-" + LipsyncNodeCommit), nodeDir);
+                    File.Delete(zip);
+                    Directory.Delete(tmp, true);
+                }
+
+                foreach (string rel in new[] { "nodes.py", @"latentsync\utils\util.py" })
+                {
+                    string path = Path.Combine(nodeDir, rel);
+                    if (File.Exists(path) && File.ReadAllText(path).Contains("local patch"))
+                    {
+                        Log("✓ LatentSync уже пропатчен: " + rel);
+                        continue;
+                    }
+                    string text;
+                    using (var wc = new WebClient())
+                    {
+                        wc.Headers["User-Agent"] = "Mozilla/5.0";
+                        wc.Encoding = Encoding.UTF8;
+                        text = wc.DownloadString(LipsyncPatchBase + rel.Replace('\\', '/'));
+                    }
+                    if (!text.Contains("local patch")) throw new Exception("получен неожиданный файл вместо патча: " + rel);
+                    Directory.CreateDirectory(Path.GetDirectoryName(path));
+                    File.WriteAllText(path, text, new UTF8Encoding(false));
+                    Log("✓ LatentSync: применён патч " + rel);
+                }
+
+                string py = Path.Combine(root, @"python_embeded\python.exe");
+                if (File.Exists(py))
+                {
+                    Log("Установка Python-пакетов LatentSync (несколько минут)...");
+                    var psi = new ProcessStartInfo(py, "-s -m pip install " + LipsyncPackages)
+                    {
+                        WorkingDirectory = root, UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true
+                    };
+                    using (var pr = Process.Start(psi))
+                    {
+                        string o = pr.StandardOutput.ReadToEnd() + pr.StandardError.ReadToEnd();
+                        pr.WaitForExit();
+                        Log(pr.ExitCode == 0 ? "✓ Пакеты установлены." : "! pip завершился с ошибкой: " + o.Trim());
+                    }
+                }
+                else Log("! python_embeded не найден: установите пакеты вручную: pip install " + LipsyncPackages);
+
+                try
+                {
+                    var ff = Process.Start(new ProcessStartInfo("ffmpeg", "-version") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true });
+                    ff.WaitForExit();
+                }
+                catch { Log("! ffmpeg не найден в PATH: он нужен для липсинка (winget install Gyan.FFmpeg)."); }
+            }
+            catch (Exception ex)
+            {
+                Log("! Не удалось установить LatentSync: " + ex.Message);
+            }
+        }
+
         private void UpdateModelsRegistry(string root, Dictionary<string, string> updates)
         {
             try
@@ -791,11 +904,12 @@ namespace StudioSetup
                     }
 
                     shortcut.GetType().InvokeMember("WorkingDirectory", BindingFlags.SetProperty, null, shortcut, new object[] { root });
-                    if (File.Exists(icoPath))
+                    string iconSource = File.Exists(exeApp) ? exeApp : icoPath;
+                    if (File.Exists(iconSource))
                     {
-                        shortcut.GetType().InvokeMember("IconLocation", BindingFlags.SetProperty, null, shortcut, new object[] { icoPath + ",0" });
+                        shortcut.GetType().InvokeMember("IconLocation", BindingFlags.SetProperty, null, shortcut, new object[] { iconSource + ",0" });
                     }
-                    shortcut.GetType().InvokeMember("Description", BindingFlags.SetProperty, null, shortcut, new object[] { "Студия AI: Генерация, правка фото и апскейл" });
+                    shortcut.GetType().InvokeMember("Description", BindingFlags.SetProperty, null, shortcut, new object[] { "Студия AI: фото, видео и липсинк" });
                     shortcut.GetType().InvokeMember("Save", BindingFlags.InvokeMethod, null, shortcut, null);
 
                     Log("✓ Ярлык «Студия» успешно создан на Рабочем столе.");
