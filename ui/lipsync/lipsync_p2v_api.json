@@ -1,0 +1,9 @@
+{
+ "1": {"class_type": "LoadImage", "inputs": {"image": "{{image}}"}},
+ "2": {"class_type": "ImageScaleToTotalPixels", "inputs": {"image": ["1", 0], "upscale_method": "lanczos", "megapixels": 1.0, "resolution_steps": 2}},
+ "3": {"class_type": "RepeatImageBatch", "inputs": {"image": ["2", 0], "amount": "{{frames}}"}},
+ "4": {"class_type": "LoadAudio", "inputs": {"audio": "{{audio}}"}},
+ "5": {"class_type": "LatentSyncNode", "inputs": {"images": ["3", 0], "audio": ["4", 0], "seed": "{{seed}}", "lips_expression": "{{lips}}", "inference_steps": "{{steps}}"}},
+ "6": {"class_type": "CreateVideo", "inputs": {"images": ["5", 0], "fps": 25, "audio": ["4", 0]}},
+ "7": {"class_type": "SaveVideo", "inputs": {"video": ["6", 0], "filename_prefix": "lipsync/ls", "format": "auto", "format.codec": "auto"}}
+}

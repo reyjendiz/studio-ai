@@ -1,6 +1,6 @@
 """UI server on :8189. Serves index.html, proxies the ComfyUI API on :8188, and manages model files (/api/models*).
 ComfyUI is started on the first generation and stopped again once nothing has been generating for IDLE seconds."""
-import http.server, urllib.request, urllib.error, urllib.parse, pathlib, json, re, threading, uuid, subprocess, time, mimetypes, gc
+import os, shutil, http.server, urllib.request, urllib.error, urllib.parse, pathlib, json, re, threading, uuid, subprocess, time, mimetypes, gc
 
 COMFY = "http://127.0.0.1:8188"
 HERE = pathlib.Path(__file__).parent
@@ -69,7 +69,8 @@ def ensure_comfy():
             log = open(HERE.parent / "logs" / "comfyui.out.log", "wb")
             comfy["proc"] = p = subprocess.Popen(
                 [str(HERE.parent / "python_embeded" / "python.exe"), "-s", str(COMFY_DIR / "main.py"), "--windows-standalone-build", "--disable-auto-launch"],
-                cwd=HERE.parent, stdout=log, stderr=subprocess.STDOUT, creationflags=0x08000000)   # CREATE_NO_WINDOW
+                cwd=HERE.parent, stdout=log, stderr=subprocess.STDOUT, creationflags=0x08000000,
+                env={**os.environ, "PYTHONIOENCODING": "utf-8"})   # custom nodes print non-cp1251 characters; with a cp1251 log file that kills ComfyUI's worker thread   # CREATE_NO_WINDOW
         for _ in range(START_TIMEOUT * 2):
             if comfy_up():
                 comfy["last"] = time.time()
@@ -342,24 +343,26 @@ def ltx_files():
     }
 
 
-def ltx_history(limit=200):
+def ltx_history(limit=200, sub="video", prefix="ltx"):
+    d = OUTPUT_DIR / sub
     out = []
-    for p in VIDEO_DIR.glob("ltx*.mp4") if VIDEO_DIR.is_dir() else []:
+    for p in d.glob(prefix + "*.mp4") if d.is_dir() else []:
         meta = {}
         try:
             meta = json.loads(p.with_suffix(".json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
             pass
-        out.append({"filename": p.name, "subfolder": "video", "type": "output", "mtime": p.stat().st_mtime, "size": p.stat().st_size, "meta": meta})
+        out.append({"filename": p.name, "subfolder": sub, "type": "output", "mtime": p.stat().st_mtime, "size": p.stat().st_size, "meta": meta})
     out.sort(key=lambda x: -x["mtime"])
     return out[:limit]
 
 
 def ltx_file(name):
-    if not re.fullmatch(r"ltx[\w\-. ]{1,100}\.mp4", name or ""):
+    if not re.fullmatch(r"(ltx|ls)[\w\-. ]{1,100}\.mp4", name or ""):
         raise ValueError("недопустимое имя файла")
-    f = (VIDEO_DIR / name).resolve()
-    if f.parent != VIDEO_DIR.resolve() or not f.is_file():
+    d = (OUTPUT_DIR / ("lipsync" if name.startswith("ls") else "video")).resolve()
+    f = (d / name).resolve()
+    if f.parent != d or not f.is_file():
         raise ValueError("файл не найден")
     return f
 
@@ -384,6 +387,67 @@ def serve_file(h, f, ctype):
         while left > 0 and (chunk := fh.read(min(1 << 20, left))):
             h.wfile.write(chunk)
             left -= len(chunk)
+
+
+# --- lip sync (LatentSync): media prepared with ffmpeg (the model assumes 25 fps) and progress read from ComfyUI's log ---
+LIPSYNC_DIR = HERE / "lipsync"
+STEP_RE = re.compile(r"Doing inference\.\.\.:\s*\d+%\|[^|]*\|\s*(\d+)/(\d+)")
+FFMPEG = {
+    "video": (["-an", "-vf", "fps=25,scale=min(1920\\,iw):-2", "-c:v", "libx264", "-crf", "14", "-pix_fmt", "yuv420p"], ".mp4", 4 << 30),
+    "audio": (["-vn", "-ar", "44100", "-c:a", "pcm_s16le"], ".wav", 1 << 29),
+}
+
+
+def lipsync_progress(since=0):
+    """Latest 'Doing inference n/N' written to ComfyUI's log after byte offset `since` (so a finished earlier job is not mistaken for this one)."""
+    try:
+        with open(HERE.parent / "logs" / "comfyui.out.log", "rb") as f:
+            size = f.seek(0, 2)
+            f.seek(max(0, since if since <= size else 0))   # the log restarts when ComfyUI does
+            tail = f.read().decode("utf-8", "replace")[-16384:]
+    except OSError:
+        return {"step": 0, "total": 0, "size": 0}
+    m = STEP_RE.findall(tail)
+    return {"step": int(m[-1][0]) if m else 0, "total": int(m[-1][1]) if m else 0, "size": size}
+
+
+def hard_cancel():
+    """LatentSync is one long node that ComfyUI's /interrupt cannot stop, so the ComfyUI we started is restarted instead (it comes back on the next request)."""
+    p = comfy["proc"]
+    if p is None or p.poll() is not None:
+        return False
+    subprocess.run(["taskkill", "/T", "/F", "/PID", str(p.pid)], capture_output=True, creationflags=0x08000000)
+    comfy["proc"] = None
+    return True
+
+
+def prepare_media(h, kind):
+    """Saves the upload, converts it with ffmpeg into ComfyUI's input folder and returns the new name and its duration."""
+    if kind not in FFMPEG or not shutil.which("ffmpeg"):
+        raise ValueError("ffmpeg не найден: установите его (winget install Gyan.FFmpeg) и перезапустите Студию" if kind in FFMPEG else "неизвестный тип")
+    args, ext, limit = FFMPEG[kind]
+    left = int(h.headers.get("Content-Length") or 0)
+    if not 0 < left <= limit:
+        raise ValueError("файл пустой или слишком большой")
+    TEMP_DIR.mkdir(parents=True, exist_ok=True)
+    src = TEMP_DIR / ("up_" + uuid.uuid4().hex)
+    dst = INPUT_DIR / ("ls_" + uuid.uuid4().hex[:10] + ext)
+    try:
+        with open(src, "wb") as f:
+            while left > 0:
+                chunk = h.rfile.read(min(1 << 20, left))
+                if not chunk:
+                    raise ValueError("загрузка прервана")
+                f.write(chunk)
+                left -= len(chunk)
+        r = subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(src), *args, str(dst)], capture_output=True, text=True, timeout=900, creationflags=0x08000000)
+        if r.returncode or not dst.is_file():
+            dst.unlink(missing_ok=True)
+            raise ValueError("не удалось прочитать файл: " + (r.stderr.strip().splitlines() or ["неизвестный формат"])[-1][:200])
+        sec = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(dst)], capture_output=True, text=True, creationflags=0x08000000).stdout.strip() or 0)
+        return {"name": dst.name, "seconds": sec}
+    finally:
+        src.unlink(missing_ok=True)
 
 
 class H(http.server.BaseHTTPRequestHandler):
@@ -450,9 +514,14 @@ class H(http.server.BaseHTTPRequestHandler):
             return self._send(200, {k: v for k, v in LTX.items()} | {"comfy": comfy_up()})
         if u.path == "/api/ltx/history":
             return self._send(200, ltx_history())
-        if u.path.startswith("/ltx/"):   # the lazily loaded video tab: scripts, styles and workflow templates
-            f = (LTX_DIR / urllib.parse.unquote(u.path[5:])).resolve()
-            if f.parent == LTX_DIR.resolve() and f.suffix in STATIC_EXT and f.is_file():
+        if u.path == "/api/lipsync/history":
+            return self._send(200, ltx_history(sub="lipsync", prefix="ls"))
+        if u.path == "/api/lipsync/progress":
+            return self._send(200, lipsync_progress(int(urllib.parse.parse_qs(u.query).get("since", ["0"])[0] or 0)))
+        if u.path.startswith(("/ltx/", "/lipsync/")):   # the lazily loaded tabs: scripts, styles and workflow templates
+            base = LTX_DIR if u.path.startswith("/ltx/") else LIPSYNC_DIR
+            f = (base / urllib.parse.unquote(u.path.split("/", 2)[2])).resolve()
+            if f.parent == base.resolve() and f.suffix in STATIC_EXT and f.is_file():
                 return self._send(200, f.read_bytes(), STATIC_EXT[f.suffix] + "; charset=utf-8")
             return self._send(404, {"error": "not found"})
         if u.path == "/view":   # straight from disk, so browsing the gallery never wakes ComfyUI
@@ -502,6 +571,10 @@ class H(http.server.BaseHTTPRequestHandler):
                 matches[0].unlink()
                 set_registry(name, None)
                 return self._send(200, {"ok": True})
+            if u.path == "/api/lipsync/cancel":
+                return self._send(200, {"killed": hard_cancel()})
+            if u.path == "/api/lipsync/prepare":
+                return self._send(200, prepare_media(self, urllib.parse.parse_qs(u.query).get("kind", [""])[0]))
             if u.path == "/api/ltx/meta":   # settings of a finished video, stored next to it
                 d = self._json()
                 ltx_file(d.get("filename")).with_suffix(".json").write_text(json.dumps(d.get("meta") or {}, ensure_ascii=False, indent=1), encoding="utf-8")

@@ -282,6 +282,7 @@
     <button type="button" data-value="edit">Редактировать фото</button>
     <button type="button" data-value="up">Апскейл ×2</button>
     <button type="button" data-value="video">Видео (LTX-2.5)</button>
+    <button type="button" data-value="lipsync">Липсинк</button>
   </div>
   <input type="hidden" id="mode" value="gen">
   <span class="chip">локально · без лимитов</span>
@@ -382,7 +383,8 @@
     </section>
   </div>
 </main>
-<div id="videoView" hidden></div>
+<div id="videoView" class="vview" hidden></div>
+<div id="lipsyncView" class="vview" hidden></div>
 </div>
 
 <div id="sheetBg"><div class="card" id="sheet" role="dialog" aria-label="Модели">
@@ -689,21 +691,23 @@ const PLACEHOLDER = {
   gen:'Опиши картинку по-английски: Photo of a … soft window light, 35mm, natural skin texture',
   edit:'Что изменить, по-английски: Change the jacket to red. Keep the face and background unchanged.'
 };
-/* the video tab is built on first open, so it costs nothing at startup */
-let videoLoading;
-function loadVideoTab() {
-  if (videoLoading) return;
-  videoLoading = new Promise((ok, fail) => {
-    const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = '/ltx/video.css'; document.head.appendChild(css);
-    const js = document.createElement('script'); js.src = '/ltx/video.js';
-    js.onload = () => ok(window.initVideoTab($('videoView'))); js.onerror = () => { videoLoading = null; fail(); };
+/* the video and lip-sync tabs are built on first open, so they cost nothing at startup */
+const tabsLoaded = {};
+function loadTab(name, dir, init, root) {
+  if (tabsLoaded[name]) return;
+  tabsLoaded[name] = new Promise((ok, fail) => {
+    if (!document.querySelector('link[href="/ltx/video.css"]')) { const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/ltx/video.css'; document.head.appendChild(l); }   // both tabs share it
+    const js = document.createElement('script'); js.src = '/' + dir + '/' + name + '.js';
+    js.onload = () => ok(window[init]($(root))); js.onerror = () => { tabsLoaded[name] = null; fail(); };
     document.head.appendChild(js);
   });
 }
 function syncMode() {
-  const video = $('mode').value === 'video';
-  $('mainView').hidden = video; $('videoView').hidden = !video;
-  if (video) { loadVideoTab(); return; }
+  const m = $('mode').value, tab = m === 'video' || m === 'lipsync';
+  $('mainView').hidden = tab; $('videoView').hidden = m !== 'video'; $('lipsyncView').hidden = m !== 'lipsync';
+  if (m === 'video') loadTab('video', 'ltx', 'initVideoTab', 'videoView');
+  if (m === 'lipsync') loadTab('lipsync', 'lipsync', 'initLipsyncTab', 'lipsyncView');
+  if (tab) return;
   const edit = isEdit(), up = isUp();
   $('form').classList.toggle('up', up);
   $('goText').textContent = up ? 'Увеличить ×2' : 'Сгенерировать';

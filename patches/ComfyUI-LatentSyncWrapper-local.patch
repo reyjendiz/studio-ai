@@ -1,0 +1,103 @@
+diff --git a/latentsync/utils/util.py b/latentsync/utils/util.py
+index 1becf3b..3e89465 100644
+--- a/latentsync/utils/util.py
++++ b/latentsync/utils/util.py
+@@ -113,16 +113,15 @@ def read_audio(audio_path: str, audio_sample_rate: int = 16000):
+ 
+ 
+ def write_video(video_output_path: str, video_frames: np.ndarray, fps: int):
+-    with imageio.get_writer(
+-        video_output_path,
+-        fps=fps,
+-        codec="libx264",
+-        macro_block_size=None,
+-        ffmpeg_params=["-crf", "13"],
+-        ffmpeg_log_level="error",
+-    ) as writer:
+-        for video_frame in video_frames:
+-            writer.append_data(video_frame)
++    # local patch: imageio's default mp4 plugin is now PyAV and rejects macro_block_size/ffmpeg_params
++    import av
++    c = av.open(video_output_path, mode="w")
++    st = c.add_stream("libx264", rate=int(fps), options={"crf": "13"})
++    st.width, st.height, st.pix_fmt = int(video_frames[0].shape[1]) // 2 * 2, int(video_frames[0].shape[0]) // 2 * 2, "yuv420p"
++    for f in video_frames:
++        c.mux(st.encode(av.VideoFrame.from_ndarray(np.ascontiguousarray(f[:st.height, :st.width]), format="rgb24")))
++    c.mux(st.encode(None))
++    c.close()
+ 
+ 
+ def write_video_cv2(video_output_path: str, video_frames: np.ndarray, fps: int):
+diff --git a/nodes.py b/nodes.py
+index 093ac18..78d6ef6 100644
+--- a/nodes.py
++++ b/nodes.py
+@@ -230,7 +230,7 @@ def check_and_install_dependencies():
+     ]
+ 
+     # Create a flag file to remember we've already installed packages
+-    user_home = os.path.expanduser("~")
++    user_home = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache"); os.makedirs(user_home, exist_ok=True)   # local patch: keep caches inside the ComfyUI folder, not the user profile
+     dependencies_installed_flag = os.path.join(user_home, ".latentsync16_dependencies_installed")
+     
+     # Skip installation if we've already done it before
+@@ -319,7 +319,7 @@ def pre_download_models():
+ 
+     # Use a persistent location for model cache instead of temporary directory
+     # This ensures models are downloaded only once across all runs
+-    user_home = os.path.expanduser("~")
++    user_home = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache"); os.makedirs(user_home, exist_ok=True)   # local patch: keep caches inside the ComfyUI folder, not the user profile
+     persistent_cache_dir = os.path.join(user_home, ".latentsync16_models")
+     os.makedirs(persistent_cache_dir, exist_ok=True)
+     
+@@ -421,6 +421,25 @@ def setup_models():
+             print(f"   with whisper/tiny.pt in: {whisper_dir}")
+             raise RuntimeError("Model download failed. See instructions above.")
+ 
++
++# local patch: torchvision >= 0.2x dropped io.write_video/read_video, so use PyAV directly
++def _write_video(path, frames, fps):
++    import av
++    c = av.open(path, mode="w")
++    st = c.add_stream("libx264", rate=int(fps))
++    st.width, st.height, st.pix_fmt = int(frames.shape[2]) // 2 * 2, int(frames.shape[1]) // 2 * 2, "yuv420p"
++    for f in frames.numpy():
++        c.mux(st.encode(av.VideoFrame.from_ndarray(f[:st.height, :st.width], format="rgb24")))
++    c.mux(st.encode(None))
++    c.close()
++
++
++def _read_video(path):
++    import av, numpy as np
++    with av.open(path) as c:
++        return torch.from_numpy(np.stack([f.to_ndarray(format="rgb24") for f in c.decode(video=0)]))
++
++
+ class LatentSyncNode:
+     def __init__(self):
+         # Make sure our temp directory is the current one
+@@ -566,13 +585,12 @@ class LatentSyncNode:
+             
+             # Move waveform to CPU for saving
+             waveform_cpu = waveform.cpu()
+-            torchaudio.save(audio_path, waveform_cpu, sample_rate)
++            import soundfile as _sf; _sf.write(audio_path, waveform_cpu.T.numpy(), sample_rate)   # local patch: torchaudio.save needs torchcodec, not installed
+ 
+             # Move frames to CPU for saving to video
+             frames_cpu = frames.cpu()
+             try:
+-                import torchvision.io as io
+-                io.write_video(temp_video_path, frames_cpu, fps=25, video_codec='h264')
++                _write_video(temp_video_path, frames_cpu, 25)
+             except TypeError as e:
+                 # Check if the error is specifically about macro_block_size
+                 if "macro_block_size" in str(e):
+@@ -680,7 +698,7 @@ class LatentSyncNode:
+                 raise FileNotFoundError(f"Output video not found at: {output_video_path}")
+             
+             # Read the processed video - ensure it's loaded as CPU tensor
+-            processed_frames = io.read_video(output_video_path, pts_unit='sec')[0]
++            processed_frames = _read_video(output_video_path)
+             processed_frames = processed_frames.float() / 255.0
+ 
+             # Ensure audio is on CPU before returning

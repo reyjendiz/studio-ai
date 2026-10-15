@@ -1,16 +1,16 @@
 /* "Видео (LTX-2.5)" tab. Loaded on first open; reuses the page's tokens and components (.card .composer .seg .fold .switch .go .btn select). */
 [hidden] { display:none !important; }
-#videoView { min-height:0; padding:0 22px 22px; display:grid; gap:18px; grid-template-columns:420px minmax(0,1fr); }
-#videoView .composer { gap:11px; }
-#videoView .right { grid-template-rows:minmax(0,1fr); }
-#videoView .results { padding:18px; gap:14px; overflow-y:auto; scrollbar-width:thin; scrollbar-color:var(--fill) transparent; }
+.vview { min-height:0; padding:0 22px 22px; display:grid; gap:18px; grid-template-columns:420px minmax(0,1fr); }
+.vview .composer { gap:11px; }
+.vview .right { grid-template-rows:minmax(0,1fr); }
+.vview .results { padding:18px; gap:14px; overflow-y:auto; scrollbar-width:thin; scrollbar-color:var(--fill) transparent; }
 
 .v-row2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 .v-row3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
 .v-lbl { color:var(--mute); font-size:12.5px; font-weight:600; display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
 .v-lbl b { color:var(--text); font-weight:600; font-variant-numeric:tabular-nums; }
-#videoView select, #videoView input[type=number] { font-size:13.5px; }
-#videoView input[type=number].bad { border-color:var(--red); box-shadow:0 0 0 3px rgba(240,128,128,.12); }
+.vview select, .vview input[type=number] { font-size:13.5px; }
+.vview input[type=number].bad { border-color:var(--red); box-shadow:0 0 0 3px rgba(240,128,128,.12); }
 #vPrompt { min-height:110px; font-size:14.5px; line-height:1.45; }
 .v-tip { font-size:12px; color:var(--mute); line-height:1.4; }
 .v-warn { font-size:12px; color:#f3c969; line-height:1.4; }
@@ -21,7 +21,7 @@
 .v-box b { font-weight:600; }
 .v-box ul { margin:6px 0 0; padding-left:18px; }
 .v-box code { color:var(--text); word-break:break-all; }
-#videoView .drop.has { height:130px; }
+.vview .drop.has { height:130px; }
 #vAdv summary { cursor:pointer; color:var(--mute); font-weight:600; font-size:13px; padding:4px 2px; }
 #vAdv[open] summary { color:var(--text); }
 #vAdv .in { display:grid; gap:10px; padding-top:8px; }
@@ -58,6 +58,6 @@
 .v-queue { font-size:12.5px; color:var(--mute); }
 
 @media (max-width:900px) {
-  #videoView { grid-template-columns:1fr; padding:0 16px 24px; }
-  #videoView .composer { overflow:visible; }
+  .vview { grid-template-columns:1fr; padding:0 16px 24px; }
+  .vview .composer { overflow:visible; }
 }

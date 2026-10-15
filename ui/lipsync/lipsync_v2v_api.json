@@ -1,0 +1,9 @@
+{
+ "1": {"class_type": "LoadVideo", "inputs": {"file": "{{video}}"}},
+ "2": {"class_type": "GetVideoComponents", "inputs": {"video": ["1", 0]}},
+ "3": {"class_type": "LoadAudio", "inputs": {"audio": "{{audio}}"}},
+ "4": {"class_type": "VideoLengthAdjuster", "inputs": {"images": ["2", 0], "audio": ["3", 0], "mode": "{{mode}}", "fps": 25, "silent_padding_sec": 0.1}},
+ "5": {"class_type": "LatentSyncNode", "inputs": {"images": ["4", 0], "audio": ["4", 1], "seed": "{{seed}}", "lips_expression": "{{lips}}", "inference_steps": "{{steps}}"}},
+ "6": {"class_type": "CreateVideo", "inputs": {"images": ["5", 0], "fps": 25, "audio": ["4", 1]}},
+ "7": {"class_type": "SaveVideo", "inputs": {"video": ["6", 0], "filename_prefix": "lipsync/ls", "format": "auto", "format.codec": "auto"}}
+}

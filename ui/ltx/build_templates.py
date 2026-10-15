@@ -7,7 +7,7 @@ S1 = "1.0, 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 0.0"
 S2 = "0.85, 0.7250, 0.4219, 0.0"
 
 
-def build(i2v):
+def build(i2v, audio_in=False):
     g = {
         "1": {"class_type": "UnetLoaderGGUF", "inputs": {"unet_name": "{{unet}}"}},
         "2": {"class_type": "CLIPLoader", "inputs": {"clip_name": "{{clip}}", "type": "ltxv", "device": "default"}},
@@ -47,9 +47,19 @@ def build(i2v):
         g["24"] = {"class_type": "LTXVImgToVideoInplace", "inputs": {"vae": ["3", 0], "image": ["22", 0], "latent": ["18", 0], "strength": 1.0, "bypass": False}}
         g["11"]["inputs"]["video_latent"] = ["23", 0]
         g["19"]["inputs"]["video_latent"] = ["24", 0]
+    if audio_in:
+        # speech drives the video: its latent is encoded once and frozen (mask 0), only the video is sampled; the original audio goes into the file
+        g["40"] = {"class_type": "LoadAudio", "inputs": {"audio": "{{audio}}"}}
+        g["41"] = {"class_type": "TrimAudioDuration", "inputs": {"audio": ["40", 0], "start_index": 0, "duration": "{{seconds}}"}}
+        g["42"] = {"class_type": "LTXVAudioVAEEncode", "inputs": {"audio": ["41", 0], "audio_vae": ["4", 0]}}
+        g["43"] = {"class_type": "SolidMask", "inputs": {"value": 0, "width": "{{width}}", "height": "{{height}}"}}
+        g["44"] = {"class_type": "SetLatentNoiseMask", "inputs": {"samples": ["42", 0], "mask": ["43", 0]}}
+        g["11"]["inputs"]["audio_latent"] = ["44", 0]
+        g["37"]["inputs"]["audio"] = ["41", 0]
+        del g["10"], g["36"]
     return g
 
 
 if __name__ == "__main__":
-    for name, i2v in (("t2v", False), ("i2v", True)):
-        (OUT / f"ltx_{name}_api.json").write_text(json.dumps(build(i2v), indent=1), encoding="utf-8")
+    for name, i2v, aud in (("t2v", False, False), ("i2v", True, False), ("ia2v", True, True)):
+        (OUT / f"ltx_{name}_api.json").write_text(json.dumps(build(i2v, aud), indent=1), encoding="utf-8")

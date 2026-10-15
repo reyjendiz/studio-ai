@@ -10,7 +10,7 @@ UNET = sys.argv[6] if len(sys.argv) > 6 else "LTX-2.5-Distilled-Q4_K_M.gguf"
 CLIP = sys.argv[7] if len(sys.argv) > 7 else "gemma4-12b-with-proj-ltx-2.5-Q5_K_M.gguf"
 IMAGE = sys.argv[8] if len(sys.argv) > 8 else "example.png"
 import os
-PROMPT = os.environ.get("LTX_PROMPT") or {"t2v": "A red fox walks through a snowy pine forest at dawn, the camera slowly tracks alongside, soft golden light, cinematic, ambient forest sounds.",
+PROMPT = os.environ.get("LTX_PROMPT") or {"ia2v": "A person speaks to the camera, natural lip movements, subtle head motion, soft light.", "t2v": "A red fox walks through a snowy pine forest at dawn, the camera slowly tracks alongside, soft golden light, cinematic, ambient forest sounds.",
           "i2v": "The subject slowly turns and looks at the camera, gentle natural motion, the camera pushes in slightly, soft light."}[mode]
 
 
@@ -24,7 +24,8 @@ length = round(SEC * FPS / 8) * 8 + 1
 g = fill(json.loads((HERE / f"ltx_{mode}_api.json").read_text()), dict(
     unet=UNET, clip=CLIP, vae="ltx-2.5-video-vae-bf16.safetensors", audio_vae="ltx-2.5-audio-vae-bf16.safetensors",
     upscaler="ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors", prompt=PROMPT, negative="pc game, console game, video game, cartoon, childish, ugly",
-    fps=FPS, half_width=W // 2, half_height=H // 2, length=length, seed=int(time.time()) % 2**31, cfg=1, image=IMAGE))
+    fps=FPS, half_width=W // 2, half_height=H // 2, length=length, seed=int(time.time()) % 2**31, cfg=1, image=IMAGE,
+    audio=os.environ.get("LTX_AUDIO", ""), seconds=(length - 1) / FPS, width=W, height=H))
 if CLIP.endswith(".gguf"): g["2"] = {"class_type": "CLIPLoaderGGUF", "inputs": {"clip_name": CLIP, "type": "ltxv"}}
 
 peak, stop = [0], threading.Event()
