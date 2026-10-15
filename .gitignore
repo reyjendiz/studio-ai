@@ -71,3 +71,14 @@ ui/index.backup-*.html
 # --- LTX video: local test backups and GGUF weights ---
 _backup_before_ltx/
 *.gguf
+
+# --- insightface models are downloaded relative to the working directory ---
+checkpoints/
+
+# --- native Rust app: build output, caches, icon sources ---
+studio/target/
+studio_cache/
+studio/assets/icon_src/
+
+# --- icon backups made by tools/make_icon.py runs ---
+ui/studio.old[0-9]*
