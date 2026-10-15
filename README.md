@@ -1,168 +1,172 @@
-# ✦ Студия AI (ComfyUI Studio)
+# ✦ Studio AI (ComfyUI Studio)
 
-> **Минималистичная и сверхбыстрая локальная AI-студия: генерация изображений, умная правка фото, апскейл ×2 и встроенный офлайн-переводчик промптов.**
+**English** · [Русский](README.ru.md)
+
+> **A local AI studio for Windows: image generation, photo editing, 2× upscaling, LTX-2.5 video and LatentSync lip sync. A native Rust app on top of ComfyUI, fully offline, no limits.**
 
 [![Platform](https://img.shields.io/badge/Platform-Windows_10_%2F_11-blue.svg)](https://microsoft.com/windows)
+[![App](https://img.shields.io/badge/App-native_Rust_%2B_egui-orange.svg)](studio)
 [![Backend](https://img.shields.io/badge/Backend-ComfyUI-orange.svg)](https://github.com/comfyanonymous/ComfyUI)
-[![Models](https://img.shields.io/badge/Models-Z--Image_%7C_NoctQ_%7C_Nomos2_%7C_HFA2k-green.svg)](https://civitai.com)
-[![Translation](https://img.shields.io/badge/Translator-Helsinki--NLP_Offline-purple.svg)](https://huggingface.co/Helsinki-NLP/opus-mt-ru-en)
+[![Models](https://img.shields.io/badge/Models-Z--Image_%7C_NoctQ_%7C_LTX--2.5_%7C_LatentSync-green.svg)](https://huggingface.co)
+[![Languages](https://img.shields.io/badge/UI-English_%7C_Русский_%7C_Українська-purple.svg)](#-features)
 
 ---
 
-## 📸 Скриншоты
+## 📸 Screenshots
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/02-create.png" alt="Создание изображений"><br><sub><b>Создать</b>: генерация по тексту, результаты в галерее</sub></td>
-    <td width="50%"><img src="docs/screenshots/04-edit.png" alt="Редактирование фото"><br><sub><b>Редактировать фото</b>: правка по инструкции, два фото для совмещения</sub></td>
+    <td width="50%"><img src="docs/screenshots/01-create.jpg" alt="Create"><br><sub><b>Create</b>: text to image, results in the gallery</sub></td>
+    <td width="50%"><img src="docs/screenshots/02-edit.jpg" alt="Edit photo"><br><sub><b>Edit photo</b>: change a photo by instruction</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/screenshots/03-upscale.png" alt="Апскейл x2"><br><sub><b>Апскейл ×2</b>: фото, люди, предметы и аниме</sub></td>
-    <td width="50%"><img src="docs/screenshots/01-empty.png" alt="Главный экран"><br><sub>Главный экран: всё помещается на одном экране</sub></td>
+    <td width="50%"><img src="docs/screenshots/03-upscale.jpg" alt="Upscale ×2"><br><sub><b>Upscale ×2</b>: photos, people, objects and anime</sub></td>
+    <td width="50%"><img src="docs/screenshots/04-video.jpg" alt="Video LTX-2.5"><br><sub><b>Video</b>: LTX-2.5, text or photo to video with sound</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/05-lipsync.jpg" alt="Lip sync"><br><sub><b>Lip sync</b>: LatentSync 1.6, photo or video + audio</sub></td>
+    <td width="50%"><img src="docs/screenshots/06-settings.jpg" alt="Settings"><br><sub><b>Settings</b>: language, glass transparency and blur, animated background</sub></td>
   </tr>
 </table>
 
 ---
 
-## ✨ Возможности
+## ✨ Features
 
-### 1. 🎨 Создание изображений («Создать»)
-* **Z-Image Ultimate NSFW v2.0** — сверхбыстрая генерация за **8 шагов**, потрясающий фотореализм, поддержка любых промптов.
-* **NoctQ V4 int8 (Qwen-Image 2.1)** — детальная генерация за **25 шагов**, высокая точность понимания анатомии, света и текстур.
-* Выбор пропорций в 1 клик: `1:1`, `2:3`, `3:2`, `9:16`, `16:9`.
-* Пакетная генерация: 1, 2 или 4 изображения сразу.
-* Управление сидом (случайный или фиксированный).
+### The app
+* **Native Rust application** (egui/eframe), not a browser page: one window, no Python in the app itself. Python is only needed by ComfyUI, which Studio starts in the background when a job begins and stops when it is idle (60 s, 5 minutes after video or lip sync) to give the GPU memory back.
+* **Three interface languages:** English, Русский, Українська (the first launch follows the Windows language).
+* **Accent colour per tab:** photo, video and lip sync each have their own.
+* **Settings (⚙):** language, tile transparency, background blur (frosted glass), an animated "aurora" background with adjustable speed, background brightness, noise (film grain) amount and size, interface scale.
+* A click on a finished photo or video opens it in the Windows default app. "Delete all" clears the open tab's results (with confirmation).
+* **Automation:** the same job queue is available to scripts and Claude Code through `app\studio-cli.exe` and a local API (127.0.0.1 only), see [CLAUDE.md](CLAUDE.md).
 
-### 2. 🪄 Умное редактирование («Редактировать фото»)
-* Редактирование существующих фотографий по текстовой инструкции (например, *"Замени куртку на красную. Лицо и фон не меняй"*).
-* Совмещение двух фото (перенос стиля, одежды, окружения).
-* Поддержка Z-Image (img2img с ползунком силы изменений 0.6–1.0) и NoctQ (нейросетевой эдитор Qwen-Image 2.1).
+### 1. 🎨 Create
+* **Z-Image Ultimate NSFW v2.0**: very fast, **8 steps**, photorealistic. **NoctQ V4 int8 (Qwen-Image 2.1)**: detailed, **25 steps**.
+* Aspect ratios in one click (`1:1`, `2:3`, `3:2`, `9:16`, `16:9`), 1, 2 or 4 images per run, fixed or random seed.
 
-### 3. 🔍 Сверхчеткий апскейл («Апскейл ×2»)
-* **4xNomos2 hq dat2** — для фото, людей и предметов: чёткий результат без «мыла» на коже и ткани.
-* **4xHFA2k** — для артов, рисунков и аниме.
-* Увеличение разрешения с удалением артефактов и шумоподавлением.
+### 2. 🪄 Edit photo
+* Change an existing photo by instruction (*"Make the jacket red. Keep the face and background"*), combine two photos.
+* Z-Image (img2img with a strength slider 0.6–1.0) and NoctQ (the Qwen-Image 2.1 editor).
 
-### 4. 🌐 Встроенный офлайн-переводчик RU → EN
-* Модель **Helsinki-NLP/opus-mt-ru-en** работает полностью **локально на CPU** — не расходует драгоценную видеопамять (VRAM) и не требует интернета.
-* Встроенный специализированный фотографический глоссарий (*«глубина резкости»*, *«боке»*, *«золотой час»*, *«пленочное зерно»* и др.).
-* Пишите промпты на русском языке — студия переведет их на лету.
+### 3. 🔍 Upscale ×2
+* **4xNomos2 hq dat2** for photos, people and objects (no "waxy" skin or fabric), **4xHFA2k** for art and anime.
 
-### 5. ⚡ Умное энергопотребление и освобождение памяти
-* ComfyUI запускается в фоне только в момент начала генерации.
-* При бездействии более 60 секунд сервер автоматически выгружает веса из VRAM и останавливает ComfyUI, возвращая память другим играм и приложениям.
+### 4. 🎬 Video (LTX-2.5)
+* Text to video and photo to video, with sound. Model: `LTX-2.5-Distilled-Q4_K_M.gguf` (GGUF, fits 16 GB) with the official int8 Gemma encoder.
+* Size is a multiple of 64 (the draft renders at half size, then ×2), up to 1920 px and 10 s. Tested on an RTX 4080 SUPER 16 GB with 32 GB RAM: up to 1920×1088 for 5 s and 1280×704 for 10 s.
+* The first generation after ComfyUI starts takes 6–10 minutes (about 30 GB of weights load), the following ones 2–5 minutes.
+* Needs [ComfyUI-GGUF](https://github.com/city96/ComfyUI-GGUF) (the installer sets it up and patches it, see `patches/ComfyUI-GGUF-ltx25-gemma4.patch`). The `Lightricks/LTX-2.5` weights are gated: accept the license on Hugging Face and use a read token.
 
-### 6. 🎬 Видео (LTX-2.5), вкладка «Видео (LTX-2.5)»
-* Текст → видео и фото → видео, со звуком. Модель: `LTX-2.5-Distilled-Q4_K_M.gguf` (GGUF, влезает в 16 ГБ) и официальный энкодер `gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors`.
-* Размер кратен 64 (черновик считается вдвое меньше, потом ×2), до 1920 px и до 10 с. Проверено на RTX 4080 SUPER 16 ГБ и 32 ГБ ОЗУ: до 1920×1088 на 5 с и 1280×704 на 10 с без нехватки памяти.
-* Первая генерация после запуска ComfyUI идёт 6-10 минут (загрузка ~30 ГБ весов), следующие 2-5 минут. После видео ComfyUI остаётся в памяти 5 минут.
-* Код: `ui/ltx/` (вкладка и шаблоны графа ComfyUI). Настройки каждого видео лежат рядом с ним: `ComfyUI\output\video\*.json`. Графы для окна ComfyUI: `ComfyUI\user\default\workflows\LTX-2.5 *.json`.
-* Нужен узел [ComfyUI-GGUF](https://github.com/city96/ComfyUI-GGUF) в `ComfyUI\custom_nodes`; к нему применён патч `patches/ComfyUI-GGUF-ltx25-gemma4.patch` (`git apply`).
-* Веса `Lightricks/LTX-2.5` закрыты лицензией на Hugging Face: нужно принять условия и войти (`huggingface_hub.interpreter_login()`).
+### 5. 👄 Lip sync (LatentSync 1.6)
+* **Video + audio:** the same video with the mouth redone for new speech, the rest of the frame stays. **Photo + audio:** a talking photo.
+* [LatentSync 1.6](https://github.com/bytedance/LatentSync) (ByteDance, Apache-2.0) through [ComfyUI-LatentSyncWrapper](https://github.com/ShmuelRonen/ComfyUI-LatentSyncWrapper). It is the best open option among those tested; a closed service such as Sync.so cannot be reproduced with open weights.
+* Measured with the SyncNet score (higher is better, real videos score about 6–9): "Quality" 6.3, "Fast" 4.5–4.7, no lip sync 1.4. Measured on synthetic faces and a synthetic voice, not on real people.
+* Speed on an RTX 4080 SUPER 16 GB: "Quality" about 2 minutes per second of result, "Fast" about 45 s. Results are limited to **60 s**. Video is converted to 25 fps automatically; `ffmpeg` must be on PATH (`winget install Gyan.FFmpeg`).
+* One frontal face; cartoon faces are not supported. "Cancel" restarts ComfyUI because the model cannot be interrupted mid-run.
+* The installer fetches the node at a tested commit and applies two small fixes for current PyTorch and PyAV (`patches/ComfyUI-LatentSyncWrapper-local.patch`, the patched files are in `patches/LatentSyncWrapper`).
+
+### 6. 🌐 Offline translator RU → EN
+* **Helsinki-NLP/opus-mt-ru-en** runs on the **CPU** through [candle](https://github.com/huggingface/candle): no VRAM, no internet. A photography glossary is built in ("depth of field", "bokeh", "golden hour"…). Write prompts in Russian, Studio translates them on the fly.
 
 ---
 
-## 🚀 Быстрый старт и установка
+## 🚀 Install
 
-### Способ 1: Готовый EXE-установщик (Рекомендуется)
-1. Скачайте проект или запустите файл **`Setup.exe`** из корня папки.
-2. Откроется графический мастер установки.
-3. Отметьте нужные модели и компоненты галочками:
-   - [x] **Офлайн-переводчик RU → EN** (~311 МБ)
-   - [x] **Модели Апскейлера ×2** (~173 МБ)
-   - [x] **Z-Image Ultimate NSFW v2.0** (~17.0 ГБ)
-   - [x] **NoctQ V4 int8 Qwen-Image 2.1** (~16.1 ГБ)
-   - [ ] **Видео LTX-2.5 (GGUF) + ComfyUI-GGUF** (~34 ГБ, по умолчанию не отмечено): нужен токен Hugging Face, см. ниже
-   - [x] **Создать ярлык «Студия» на Рабочем столе**
-4. Для видео: примите лицензию на [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5), создайте токен с правом Read ([настройки](https://huggingface.co/settings/tokens)) и вставьте его в поле установщика. Токен нигде не сохраняется и отправляется только на huggingface.co. Установщик также скачает [ComfyUI-GGUF](https://github.com/city96/ComfyUI-GGUF) нужной версии, применит патч и поставит его Python-зависимости.
-5. Нажмите кнопку **«Начать установку»**.
-6. Установщик автоматически скачает файлы с Hugging Face и Civitai с отображением скорости, докачкой при сбоях и проверкой размера файлов.
-7. По завершении нажмите кнопку **«Запустить Студию»**!
+### Option 1: the installer (recommended)
+1. Download **`Setup.exe`** from the [latest release](https://github.com/reyjendiz/studio-ai/releases/latest) (or run it from the project folder).
+2. Tick the components you want:
+   - [x] **Offline translator RU → EN** (~311 MB)
+   - [x] **Upscaler ×2 models** (~173 MB)
+   - [x] **Z-Image Ultimate NSFW v2.0** (~17 GB)
+   - [x] **NoctQ V4 int8, Qwen-Image 2.1** (~16 GB)
+   - [ ] **Video LTX-2.5 (GGUF) + ComfyUI-GGUF** (~34 GB, off by default): needs a Hugging Face token, see below
+   - [ ] **Lip sync: LatentSync 1.6 + node** (~5.5 GB, off by default): open models, no token; needs `ffmpeg` on PATH
+   - [x] **Create a "Studio" shortcut on the Desktop**
+3. For video: accept the license of [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5), create a Read token ([settings](https://huggingface.co/settings/tokens)) and paste it into the installer. The token is not stored and is sent only to huggingface.co.
+4. Press **Start installation**. Files come from Hugging Face and Civitai with speed display, resume after failures and size checks. Then press **Launch Studio**.
 
-### Способ 2: Установка через PowerShell / Командную строку
-Если вы предпочитаете консоль или запускаете на сервере:
+### Option 2: PowerShell
 ```powershell
-# Запуск автоматического скрипта установки
-.\install.ps1
-# вместе с видео LTX-2.5 (токен берётся из -HfToken, $env:HF_TOKEN или кэша huggingface_hub)
-.\install.ps1 -LTX -HfToken hf_xxx
+.\install.ps1                          # translator, upscalers, Z-Image, NoctQ
+.\install.ps1 -Lipsync                 # + lip sync LatentSync 1.6 (~5.5 GB, no token)
+.\install.ps1 -LTX -HfToken hf_xxx     # + video LTX-2.5 (token from -HfToken, $env:HF_TOKEN or the huggingface_hub cache)
 ```
-Или двойной клик по **`install.bat`**.
+Or double-click **`install.bat`**. Other switches: `-SkipZImage`, `-SkipNoctQ`, `-SkipUpscalers`, `-SkipTranslator`, `-NoShortcut`.
 
 ---
 
-## 🖥️ Запуск приложения
+## 🖥️ Run
 
-После установки запускать Студию можно любым удобным способом:
-* **Ярлык на Рабочем столе:** `Студия` (создается установщиком)
-* **Нативное приложение:** `app\Studio.exe` (WebView2, без рамок браузера)
-* **Быстрый скрипт:** `Studio.ps1` (запуск в чистом окне Microsoft Edge App)
-* **Пакетный файл:** `start_studio.bat`
+* **Desktop shortcut** "Студия" (created by the installer), or `app\Studio.exe` directly.
+* `start_studio.bat` or `Studio.vbs` (no console window).
+* **Automation:** `app\studio-cli.exe`, for example `studio-cli gen --prompt "a red fox in the snow" --out fox.jpg`, see [CLAUDE.md](CLAUDE.md).
+* The old WebView2 shell stays as `app\StudioWebView.exe` (needs `ui\server.py`).
 
 ---
 
-## 📦 Структура моделей в проекте
+## 📦 Model layout
 
-Если вы хотите вручную добавить или переместить файлы:
-
-| Модель / Компонент | Назначение | Папка размещения |
+| Model / component | Purpose | Folder |
 |---|---|---|
-| `zImageUltimateNSFW_v20.safetensors` | Основная модель Z-Image | `ComfyUI\models\diffusion_models\` |
-| `qwen_3_4b_fp8_mixed.safetensors` | Текстовый энкодер Z-Image | `ComfyUI\models\text_encoders\` |
-| `ae.safetensors` | VAE автоэнкодер Z-Image | `ComfyUI\models\vae\` |
-| `NoctQ_V4_int8_convrot.safetensors` | Основная модель NoctQ 2.1 | `ComfyUI\models\diffusion_models\` |
-| `qwen3vl_8b_int8_convrot.safetensors` | Текстовый энкодер NoctQ | `ComfyUI\models\text_encoders\` |
-| `qwen_image_2.1_vae_bf16.safetensors`| VAE автоэнкодер NoctQ | `ComfyUI\models\vae\` |
-| `4xNomos2_hq_dat2.safetensors` | Апскейлер для фото, людей и предметов | `ComfyUI\models\upscale_models\` |
-| `4xHFA2k.safetensors` | Апскейлер для аниме/арта | `ComfyUI\models\upscale_models\` |
-| `opus-mt-ru-en` (веса и токенизатор)| Локальный переводчик | `translate\opus-mt-ru-en\` |
+| `zImageUltimateNSFW_v20.safetensors` | Z-Image main model | `ComfyUI\models\diffusion_models\` |
+| `qwen_3_4b_fp8_mixed.safetensors` | Z-Image text encoder | `ComfyUI\models\text_encoders\` |
+| `ae.safetensors` | Z-Image VAE | `ComfyUI\models\vae\` |
+| `NoctQ_V4_int8_convrot.safetensors` | NoctQ 2.1 main model | `ComfyUI\models\diffusion_models\` |
+| `qwen3vl_8b_int8_convrot.safetensors` | NoctQ text encoder | `ComfyUI\models\text_encoders\` |
+| `qwen_image_2.1_vae_bf16.safetensors` | NoctQ VAE | `ComfyUI\models\vae\` |
+| `4xNomos2_hq_dat2.safetensors` | Upscaler for photos | `ComfyUI\models\upscale_models\` |
+| `4xHFA2k.safetensors` | Upscaler for anime and art | `ComfyUI\models\upscale_models\` |
+| `LTX-2.5-Distilled-Q4_K_M.gguf` + encoder, VAEs, latent upscaler | Video | `ComfyUI\models\unet\`, `text_encoders\`, `vae\`, `latent_upscale_models\` |
+| `latentsync_unet.pt`, `whisper\tiny.pt`, `vae\` (Stable Diffusion VAE) | Lip sync | `ComfyUI\custom_nodes\ComfyUI-LatentSyncWrapper\checkpoints\` |
+| `opus-mt-ru-en` | Local translator | `translate\opus-mt-ru-en\` |
 
-Файл регистрации семейств моделей: [`ui/models.json`](ui/models.json).
-
----
-
-## 💻 Системные требования
-
-* **ОС:** Windows 10 или Windows 11 (64-bit)
-* **Видеокарта:** NVIDIA GeForce с поддержкой CUDA (рекомендуется от 8 ГБ VRAM; работает от 6 ГБ благодаря квантованию INT8/FP8)
-* **Оперативная память (RAM):** от 16 ГБ
-* **Место на диске:** от 35–40 ГБ свободного места на SSD (для весов нейросетей)
-* **Драйверы:** NVIDIA Game Ready / Studio Driver актуальной версии
+Model family registry: [`ui/models.json`](ui/models.json).
 
 ---
 
-## 🛠️ Стек технологий
+## 💻 Requirements
 
-* **Интерфейс:** Vanilla HTML5, CSS3 (Apple Design System, responsive, dark theme), JavaScript ES6+
-* **Бэкенд интерфейса:** Python `http.server` с пулом потоков, проксированием ComfyUI API и управлением жизненным циклом процессов (`ui/server.py`)
-* **AI Движок:** [ComfyUI](https://github.com/comfyanonymous/ComfyUI) (автономная сборка Portable)
-* **Нативная оболочка:** C# / .NET Windows Forms + Microsoft Edge WebView2 (`app/Studio.exe`)
-* **Установщик:** Автономный C# GUI мастер установки (`Setup.exe`) без внешних зависимостей
+* **OS:** Windows 10 or 11 (64-bit)
+* **GPU:** NVIDIA with CUDA. Images run from about 8 GB VRAM (INT8/FP8 weights fit 6 GB); video and lip sync were tested on 16 GB and use it all.
+* **RAM:** 16 GB or more (32 GB for the largest videos)
+* **Disk:** 35–40 GB for images, about 80 GB with video and lip sync
+* **Software:** a current NVIDIA driver; `ffmpeg` on PATH for lip sync
 
 ---
 
-## 🧩 Разработка: как доработать проект
+## 🛠️ Tech stack
 
-Проект лежит поверх сборки **ComfyUI Portable**: рядом с файлами репозитория должны быть папки `ComfyUI\` и `python_embeded\` (в репозиторий они не входят).
+* **App:** Rust, [egui/eframe](https://github.com/emilk/egui), Manrope font (folder `studio/`): window, job queue, ComfyUI control, local API and `studio-cli`
+* **Translator:** Helsinki-NLP/opus-mt-ru-en on the CPU via candle, no Python
+* **Engine:** [ComfyUI](https://github.com/comfyanonymous/ComfyUI) (Portable build)
+* **Installer:** a standalone C# GUI wizard (`Setup.exe`), no dependencies
 
-1. Клонируйте репозиторий: `git clone https://github.com/reyjendiz/studio-ai.git`
-2. Положите в папку проекта `ComfyUI\` и `python_embeded\` из [ComfyUI Portable](https://github.com/comfyanonymous/ComfyUI/releases).
-3. Примените правку ComfyUI (обход проблемы cuDNN conv3d): `git -C ComfyUI apply ..\patches\comfyui-cudnn-conv3d.patch`
-4. Поставьте модели через `Setup.exe` или `install.ps1`.
-5. Запуск из исходников: `python_embeded\python.exe ui\server.py`, затем откройте <http://127.0.0.1:8189>.
+---
 
-| Что менять | Где |
+## 🧩 Development
+
+The project sits on top of a **ComfyUI Portable** build: `ComfyUI\` and `python_embeded\` must be next to the repository files (they are not in the repository).
+
+1. `git clone https://github.com/reyjendiz/studio-ai.git`
+2. Put `ComfyUI\` and `python_embeded\` from [ComfyUI Portable](https://github.com/comfyanonymous/ComfyUI/releases) into the project folder.
+3. Apply the ComfyUI fix (cuDNN conv3d workaround): `git -C ComfyUI apply ..\patches\comfyui-cudnn-conv3d.patch`
+4. Install models with `Setup.exe` or `install.ps1`.
+5. Build and run: `studio\build.bat` (needs Rust), then `app\Studio.exe`. Tests: `cd studio && cargo test --release`. Screenshots of every tab: `cargo test --release --test layout -- --ignored` writes to `logs\ui\`.
+
+| What to change | Where |
 |---|---|
-| Интерфейс (вёрстка, стили, режимы, графы ComfyUI) | [`ui/index.html`](ui/index.html), один файл; после правки достаточно обновить страницу |
-| Сервер интерфейса (прокси ComfyUI, модели, перевод, запуск и остановка ComfyUI) | [`ui/server.py`](ui/server.py), нужен перезапуск сервера |
-| Иллюстрации и иконка | `ui/art\`, `ui/studio.ico`, `ui/studio.png` |
-| Окно приложения (C#, WebView2) | [`app/Studio.cs`](app/Studio.cs), сборка: `app\build.bat` |
-| Установщик | [`installer/Setup.cs`](installer/Setup.cs), сборка: `installer\build.bat` (создаёт `Setup.exe` в корне) |
+| Window, tabs, theme, languages, background | [`studio/src/ui/`](studio/src/ui) (`i18n_table.rs`: translations, a test checks that every string is translated; `aurora.rs`: animated background) |
+| ComfyUI graphs | [`studio/src/workflows.rs`](studio/src/workflows.rs), video and lip-sync templates in `ui/ltx` and `ui/lipsync` |
+| Job queue, ComfyUI control, API, CLI | `studio/src/jobs.rs`, `engine.rs`, `api.rs`, `bin/cli.rs` |
+| Icon and fonts | `studio/tools/make_icon.py`, `studio/tools/make_fonts.py`, `ui/studio.ico`, `ui/studio.png` |
+| Old interface (HTML + Python), not needed by the new app | `ui/index.html`, `ui/server.py`, `app/Studio.cs` |
+| Installer | [`installer/Setup.cs`](installer/Setup.cs), build with `installer\build.bat` (writes `Setup.exe` to the root) |
 
-Новая версия выпускается так: соберите `Setup.exe`, закоммитьте изменения и создайте релиз командой `gh release create vX.Y.Z .\Setup.exe`.
+A release is made like this: build `Setup.exe`, commit, then `gh release create vX.Y.Z .\Setup.exe`.
 
 ---
 
-## 📄 Лицензия
+## 📄 License
 
-Распространяется свободно для личного использования. Веса моделей подпадают под лицензии соответствующих авторов на Civitai и Hugging Face.
+Free for personal use. Model weights fall under the licenses of their authors on Civitai and Hugging Face.
